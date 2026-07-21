@@ -18,7 +18,7 @@ powershell -Command "New-NetFirewallRule -DisplayName 'PROJECT Studio Web GUI (P
 if %errorLevel% equ 0 (
     echo.
     echo [성공] 8000번 포트가 완벽하게 개방되었습니다!
-    echo 이제 같은 Wi-Fi에 연결된 스마트폰에서 http://192.168.0.22:8000 으로 접속 가능합니다.
+    echo 이제 같은 Wi-Fi에 연결된 기기에서 http://^<내-PC-IP^>:8000 으로 접속 가능합니다.
 ) else (
     echo [오류] 방화벽 규칙 등록에 실패했습니다.
 )

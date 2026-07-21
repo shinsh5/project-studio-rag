@@ -628,7 +628,7 @@
         async function parseJsonResponse(res) {
             const text = await res.text();
             if (text.trim().startsWith('<') || text.includes('Bypass tunnel password') || text.includes('Click to Continue')) {
-                throw new Error("loca.lt 보안 안내 창(Friendly Reminder)이 감지되었습니다! 브라우저 새 탭에서 https://project-studio-rag.loca.lt 로 접속하여 화면의 파란색 'Click to Continue' 버튼을 한 번 눌러주시거나 접속 IP(219.241.82.8)를 입력하신 뒤 다시 버튼을 눌러주세요.");
+                throw new Error("loca.lt 보안 안내 창(Friendly Reminder)이 감지되었습니다! 브라우저 새 탭에서 https://project-studio-rag.loca.lt 로 접속하여 화면의 파란색 'Click to Continue' 버튼을 한 번 눌러주시거나 접속 IP를 입력하신 뒤 다시 버튼을 눌러주세요.");
             }
             try {
                 return JSON.parse(text);
