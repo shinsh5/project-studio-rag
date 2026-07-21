@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROI-RAG Studio | Standalone Inference Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --surface-color: #161e31;
+            --surface-hover: #1e2842;
+            --primary-color: #3b82f6;
+            --primary-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            --accent-color: #10b981;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #2e3c5d;
+            --border-radius: 12px;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: rgba(22, 30, 49, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.2rem 2.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-color);
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 2rem;
+            padding: 2rem 2.5rem;
+            max-width: 1700px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .card-title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(11, 15, 25, 0.5);
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary-color);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        textarea, input[type="text"] {
+            width: 100%;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.85rem;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: border-color 0.2s;
+            resize: vertical;
+        }
+
+        textarea:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .btn {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.85rem 1.25rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            background: var(--bg-color);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .query-bar {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .answer-box {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            line-height: 1.7;
+            font-size: 1.05rem;
+            white-space: pre-wrap;
+            min-height: 150px;
+        }
+
+        .retrieved-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 450px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .eu-item {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.15rem;
+            transition: border-color 0.2s;
+        }
+
+        .eu-item:hover {
+            border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .eu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .regime-badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        .regime-LOW { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .regime-MEDIUM { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .regime-HIGH { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        .eu-summary {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            line-height: 1.5;
+            margin-bottom: 0.75rem;
+        }
+
+        .eu-snippets {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            background: rgba(22, 30, 49, 0.5);
+            padding: 0.75rem;
+            border-radius: 6px;
+            white-space: pre-wrap;
+        }
+
+        .metrics-bar {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            padding-top: 1rem;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary-color); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span>⚡ ROI-RAG Studio</span>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            <span>Backend: {{ llm_backend | upper }}</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Sidebar: Indexing Control -->
+        <div class="sidebar">
+            <div class="card">
+                <div class="card-title">📁 Document Indexing</div>
+                <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                    <p style="font-weight: 500; margin-bottom: 0.25rem;">Click to upload document (.txt)</p>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary);">or paste raw text below</p>
+                    <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="handleFileUpload(this)">
+                </div>
+                <textarea id="textInput" rows="6" placeholder="Paste your raw text or article here to build the ROI-RAG index..."></textarea>
+                <button class="btn" id="buildBtn" onclick="buildIndex()">🚀 Build ROI-RAG Index</button>
+            </div>
+
+            <div class="card">
+                <div class="card-title">📊 Current Index Status</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="statSegments">0</div>
+                        <div class="stat-label">Chunks / Segments</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="statEUs">0</div>
+                        <div class="stat-label">Evidence Units</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content: Query & Results -->
+        <div class="main-content">
+            <div class="card">
+                <div class="card-title">💡 Online Inference & Retrieval</div>
+                <div class="query-bar">
+                    <input type="text" id="queryInput" placeholder="Ask any question regarding the indexed documents..." onkeypress="if(event.key === 'Enter') executeQuery()">
+                    <button class="btn" style="width: 140px;" onclick="executeQuery()" id="queryBtn">Ask Query</button>
+                </div>
+                <div class="answer-box" id="answerBox">Type a query above to see the grounded ROI-RAG answer and retrieved Evidence Units.</div>
+                <div class="metrics-bar" id="metricsBar" style="display: none;">
+                    <span id="metricLatency">⏱ Latency: 0 ms</span>
+                    <span id="metricCalls">🔌 API Calls: 0</span>
+                    <span id="metricTokens">🪙 Tokens (Est.): 0</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🔍 Top-K Retrieved Evidence Units (Grounded Context)</div>
+                <div class="retrieved-list" id="euList">
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Retrieved Evidence Units will appear here after executing a query.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Load current index status on page start
+        window.addEventListener('DOMContentLoaded', fetchCurrentIndex);
+
+        async function fetchCurrentIndex() {
+            try {
+                const res = await fetch('/api/current-index');
+                const data = await res.json();
+                document.getElementById('statSegments').innerText = data.segments_count || 0;
+                document.getElementById('statEUs').innerText = data.eus_count || 0;
+            } catch (e) {
+                console.error("Failed to fetch current index:", e);
+            }
+        }
+
+        async function handleFileUpload(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const btn = document.getElementById('buildBtn');
+            btn.disabled = true;
+            btn.innerHTML = "⏳ Indexing File...";
+
+            try {
+                const res = await fetch('/api/upload-file', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.status === "success") {
+                    document.getElementById('statSegments').innerText = data.segments_count;
+                    document.getElementById('statEUs').innerText = data.eus_count;
+                    alert(`Successfully indexed file '${file.name}' with ${data.eus_count} Evidence Units!`);
+                } else {
+                    alert("Error: " + (data.detail || "Upload failed"));
+                }
+            } catch (e) {
+                alert("Upload failed: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = "🚀 Build ROI-RAG Index";
+                input.value = "";
+            }
+        }
+
+        async function buildIndex() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) {
+                alert("Please enter some text or upload a file first.");
+                return;
+            }
+
+            const btn = document.getElementById('buildBtn');
+            btn.disabled = true;
+            btn.innerHTML = "⏳ Building Index...";
+
+            try {
+                const res = await fetch('/api/build-index', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await res.json();
+                if (data.status === "success") {
+                    document.getElementById('statSegments').innerText = data.segments_count;
+                    document.getElementById('statEUs').innerText = data.eus_count;
+                    document.getElementById('textInput').value = "";
+                    alert(`Index built successfully! Created ${data.eus_count} Evidence Units.`);
+                } else {
+                    alert("Error: " + (data.detail || "Indexing failed"));
+                }
+            } catch (e) {
+                alert("Build failed: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = "🚀 Build ROI-RAG Index";
+            }
+        }
+
+        async function executeQuery() {
+            const query = document.getElementById('queryInput').value.trim();
+            if (!query) return;
+
+            const btn = document.getElementById('queryBtn');
+            const answerBox = document.getElementById('answerBox');
+            const euList = document.getElementById('euList');
+            const metricsBar = document.getElementById('metricsBar');
+
+            btn.disabled = true;
+            btn.innerHTML = "⏳ Thinking...";
+            answerBox.innerHTML = "<span style='color: var(--text-secondary);'>Retrieving Evidence Units and generating grounded answer...</span>";
+            euList.innerHTML = "";
+            metricsBar.style.display = "none";
+
+            try {
+                const res = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+                if (data.status === "success" && data.roi_rag) {
+                    const roi = data.roi_rag;
+                    answerBox.innerText = roi.answer;
+
+                    // Display metrics
+                    document.getElementById('metricLatency').innerText = `⏱ Latency: ${roi.latency_ms} ms`;
+                    document.getElementById('metricCalls').innerText = `🔌 API Calls: ${roi.api_calls}`;
+                    document.getElementById('metricTokens').innerText = `🪙 Tokens (Est.): ${roi.tokens_used}`;
+                    metricsBar.style.display = "flex";
+
+                    // Display retrieved EUs
+                    if (!roi.raw_contexts || roi.raw_contexts.length === 0) {
+                        euList.innerHTML = "<p style='color: var(--text-secondary);'>No Evidence Units retrieved.</p>";
+                    } else {
+                        roi.raw_contexts.forEach((eu, idx) => {
+                            const euDiv = document.createElement('div');
+                            euDiv.className = 'eu-item';
+                            euDiv.innerHTML = `
+                                <div class="eu-header">
+                                    <span style="font-weight: 600; color: var(--primary-color);">Evidence Unit #${eu.eu_id} (RE: ${eu.re}, DE: ${eu.de})</span>
+                                    <span class="regime-badge regime-${eu.regime}">Regime: ${eu.regime}</span>
+                                </div>
+                                <div class="eu-summary"><strong>Summary:</strong> ${eu.summary || "N/A"}</div>
+                                <div class="eu-snippets"><strong>Top Snippet Indices:</strong> ${JSON.stringify(eu.segment_indices)}</div>
+                            `;
+                            euList.appendChild(euDiv);
+                        });
+                    }
+                } else {
+                    answerBox.innerText = "Error: " + (data.detail || "Query execution failed.");
+                }
+            } catch (e) {
+                answerBox.innerText = "Query failed: " + e.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = "Ask Query";
+            }
+        }
+    </script>
+</body>
+</html>

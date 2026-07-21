@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+numpy<2.0.0
+faiss-cpu
+sentence-transformers
+google-genai
+python-dotenv
+jinja2
+python-multipart
+pydantic
+ollama
