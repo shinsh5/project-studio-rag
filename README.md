@@ -24,7 +24,7 @@ project_poc/
 └── app/                  # FastAPI 웹/REST API 서비스 및 웹 UI
     ├── main.py           # REST API 엔드포인트 (`/api/build-index`, `/api/query` 등)
     └── templates/
-        └── index.html    # 다크 모드 기반의 프리미엄 ROI-RAG Studio 웹 인터페이스
+        └── index.html    # 다크 모드 기반의 프리미엄 PROJECT Studio 웹 인터페이스
 ```
 
 ---
@@ -75,25 +75,64 @@ python build_index.py --file path/to/sample.txt
 python build_index.py --text "엔비디아는 AI 반도체 선두 주자로 최신 아키텍처를 발표하였습니다."
 ```
 
-### 2. CLI로 질의응답 추론 실행 (`run_inference.py`)
+### 2. CLI 또는 GUI로 질의응답 및 웹 브라우저 실행 (`run_inference.py`)
 
 ```bash
-# 단발성 질문 실행
+# PROJECT Studio 웹 GUI 서버 시작 및 브라우저 자동 실행 (기본 동작 또는 --gui)
+python run_inference.py --gui
+# 또는 인자 없이 실행하면 자동으로 GUI 모드가 실행됩니다:
+python run_inference.py
+
+# 단발성 CLI 질문 실행
 python run_inference.py --query "엔비디아의 핵심 경쟁력은 무엇인가요?"
 
-# 대화형 대화 모드 (Interactive CLI Mode) 실행
+# 대화형 CLI 대화 모드 (Interactive Mode) 실행
 python run_inference.py --interactive
 ```
 
-### 3. FastAPI REST API 및 웹 UI 구동 (`app/main.py`)
+### 3. 웹 GUI 바로 실행 전용 스크립트 (`run_gui.py` 또는 `run_gui.bat`)
 
-브라우저에서 GUI로 문서를 업로드하고 Evidence Unit(EU) 구성 내역을 확인하며 질의응답을 진행할 수 있습니다.
+FastAPI(`app/main.py`)에 내장된 다크 모드 프리미엄 **PROJECT Studio** 웹 UI를 즉시 브라우저로 띄울 수 있습니다. 기본적으로 외부 기기 접속까지 모두 허용하도록 개방 모드(`--host 0.0.0.0`)로 구동됩니다.
 
 ```bash
-uvicorn app.main:app --port 8000 --reload
+# 전용 파이썬 스크립트로 실행 (서버 구동 + 브라우저 자동 오픈 + 외부망 개방)
+python run_gui.py --host 0.0.0.0
+
+# 또는 Windows에서 실행할 경우, 더블클릭만으로 실행되는 배치 파일 이용
+run_gui.bat
+
+# 기존 uvicorn 직접 구동 방식
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-- 브라우저에서 `http://localhost:8000` 에 접속하여 **ROI-RAG Studio** 웹 UI를 사용합니다.
-- API Swagger 문서: `http://localhost:8000/docs`
+
+---
+
+## 🌐 접속 주소(URL) 및 외부 접속(LTE/5G/회사) 완벽 가이드
+
+서버가 실행된 후, 사용자님의 환경에 따라 다음 3가지 주소 중 하나로 접속하실 수 있습니다.
+
+### 📍 1. 내 PC 모니터에서 볼 때 (Local Access)
+- **접속 URL:** `http://127.0.0.1:8000` (또는 `http://localhost:8000`)
+- **설명:** 서버를 켠 컴퓨터 내에서 가장 빠르고 직접적으로 접속하는 주소입니다.
+
+### 📍 2. 같은 집/회사 Wi-Fi에 연결된 스마트폰·노트북에서 볼 때 (LAN Access)
+- **접속 URL:** `http://192.168.0.22:8000` (현재 PC의 로컬 LAN IP)
+- **설명:** 동일한 Wi-Fi(공유기) 망에 연결된 다른 기기에서 접속할 때 사용합니다.
+- **⚡ 원클릭 방화벽 해결 (`1단계_방화벽포트개방.bat`):**
+  - 만약 Wi-Fi 연결에서 "페이지가 작동하지 않습니다"가 뜨면 윈도우 방화벽이 막고 있는 것입니다.
+  - 프로젝트 폴더의 `1단계_방화벽포트개방.bat` 파일을 **우클릭 $\rightarrow$ '관리자 권한으로 실행'** 하시면 8000번 포트가 1초 만에 자동 허용됩니다.
+
+### 📍 3. 외부 환경(LTE/5G 데이터, 회사, 외부 인터넷)에서 볼 때 (External Access)
+공유기 설정이나 복잡한 포트포워딩 없이도 전 세계 어디서든 **PROJECT Studio**에 접속할 수 있도록 전용 터널을 지원합니다.
+
+- **🚀 추천 (포트포워딩 없는 커스텀 고정 주소):**
+  - **접속 URL:** `https://project-studio-rag.loca.lt`
+  - **실행 방법:** 프로젝트 폴더의 **`2단계_외부접속터널실행.bat`** 을 더블 클릭(또는 터미널에서 `npx -y localtunnel --port 8000 --subdomain project-studio-rag`)해 두시면 외부(회사/LTE)에서 언제든 위 주소로 접속됩니다.
+  - *(최초 접속 시 `loca.lt` 스팸 방지 안내 창이 나타날 수 있습니다. 화면 중앙의 파란색 `Click to Continue` 버튼을 클릭하시거나 접속 IP를 입력하시면 즉시 UI로 연결됩니다)*
+
+- **🏠 대안 (공유기 포트포워딩 사용 시):**
+  - **접속 URL:** `http://219.241.82.8:8000` (외부 공인 IP 주소)
+  - **설명:** 공유기 관리자 페이지(`192.168.0.1` 등)에서 포트포워딩(`외부 8000` $\rightarrow$ `내부 192.168.0.22:8000`)이 등록되어 있어야만 접속이 가능합니다.
 
 ---
 

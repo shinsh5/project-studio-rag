@@ -3,40 +3,59 @@ ROI-RAG 온라인 추론 파이프라인 모듈.
 질의(Query) 임베딩, FAISS Top-K Evidence Unit 검색, 대표 원문 단락 하이브리드 컨텍스트 구성 및
 LLM 기반 최종 답변 추론을 담당합니다.
 """
+import os
 import time
 import config
 import llm_client
 from indexer import load_roi_rag_index
 from embeddings import get_embedding_model
 
+_cached_index_data = None
+_cached_index_manager = None
+_cached_index_mtime = None
+
 def get_roi_rag_pipeline():
     """
     Returns a callable pipeline function for executing ROI-RAG queries against the built index.
     """
-    try:
-        index_data, index_manager = load_roi_rag_index()
-    except FileNotFoundError:
-        print("[ROIRAG] Warning: Index not found. Please run build_index first.")
-        index_data, index_manager = None, None
-
+    global _cached_index_data, _cached_index_manager, _cached_index_mtime
     embedder = get_embedding_model()
 
-    def run_pipeline(query: str, k: int = config.RETRIEVAL_K) -> dict:
-        nonlocal index_data, index_manager
+    if config.LLM_BACKEND.lower() == "ollama":
+        llm_client.warmup_ollama_model()
 
-        if index_data is None or index_manager is None:
-            try:
-                index_data, index_manager = load_roi_rag_index()
-            except FileNotFoundError:
-                return {
-                    "answer": "Index has not been built yet. Please index some documents first using build_index.py.",
-                    "retrieved_contexts": [],
-                    "raw_contexts": [],
-                    "prompt": "",
-                    "latency_ms": 0,
-                    "api_calls": 0,
-                    "tokens_used": 0
-                }
+    def run_pipeline(query: str, k: int = config.RETRIEVAL_K) -> dict:
+        global _cached_index_data, _cached_index_manager, _cached_index_mtime
+
+        if not os.path.exists(config.INDEX_PATH):
+            return {
+                "answer": "Index has not been built yet. Please index some documents first using build_index.py.",
+                "retrieved_contexts": [],
+                "raw_contexts": [],
+                "prompt": "",
+                "latency_ms": 0,
+                "api_calls": 0,
+                "tokens_used": 0
+            }
+
+        try:
+            current_mtime = os.path.getmtime(config.INDEX_PATH)
+            if _cached_index_data is None or _cached_index_manager is None or _cached_index_mtime != current_mtime:
+                _cached_index_data, _cached_index_manager = load_roi_rag_index()
+                _cached_index_mtime = current_mtime
+                print(f"[ROIRAG] Index loaded/cached in memory (mtime={current_mtime}).")
+            index_data, index_manager = _cached_index_data, _cached_index_manager
+        except Exception as e:
+            print(f"[ROIRAG] Error loading index: {e}")
+            return {
+                "answer": f"Error loading ROI-RAG index: {e}",
+                "retrieved_contexts": [],
+                "raw_contexts": [],
+                "prompt": "",
+                "latency_ms": 0,
+                "api_calls": 0,
+                "tokens_used": 0
+            }
 
         start_time = time.time()
 

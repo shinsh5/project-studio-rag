@@ -7,6 +7,12 @@ from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+import sys
+
+# Ensure parent directory (project workspace root) is in sys.path
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 import config
 from indexer import build_roi_rag_index, load_roi_rag_index
@@ -44,7 +50,7 @@ async def read_root(request: Request):
     )
 
 @app.get("/api/current-index")
-async def get_current_index():
+def get_current_index():
     try:
         index_data, _ = load_roi_rag_index()
         return {
@@ -64,7 +70,7 @@ async def get_current_index():
         }
 
 @app.post("/api/build-index")
-async def build_index(request: BuildIndexRequest):
+def build_index(request: BuildIndexRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text input cannot be empty.")
         
@@ -85,9 +91,9 @@ async def build_index(request: BuildIndexRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/upload-file")
-async def upload_file(file: UploadFile = File(...)):
+def upload_file(file: UploadFile = File(...)):
     try:
-        content = await file.read()
+        content = file.file.read()
         text = content.decode("utf-8")
         
         index_data = build_roi_rag_index(text)
@@ -109,7 +115,7 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/query")
-async def execute_query(request: QueryRequest):
+def execute_query(request: QueryRequest):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
         

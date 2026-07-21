@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ROI-RAG Studio | Standalone Inference Portal</title>
+    <title>PROJECT Studio | Standalone Inference Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -302,6 +302,148 @@
             padding-top: 1rem;
         }
 
+        .sample-badge {
+            background: var(--surface-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .sample-badge:hover {
+            border-color: var(--primary-color);
+            background: rgba(59, 130, 246, 0.15);
+            transform: translateY(-1px);
+        }
+
+        /* ROI-RAG Architecture Diagram Cards */
+        .flow-diagram {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+
+        .flow-step-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .flow-step-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
+        }
+
+        .flow-step-num {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .flow-step-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .flow-step-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Live Query Pipeline Stepper */
+        .pipeline-stepper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin: 1rem 0 0.5rem 0;
+            gap: 0.5rem;
+        }
+
+        .stepper-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            flex: 1;
+            padding: 0.5rem 0.6rem;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .stepper-item.active {
+            color: #60a5fa;
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            animation: pulseGlow 1.5s infinite;
+        }
+
+        .stepper-item.done {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
+            50% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+        }
+
+        .stepper-arrow {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 1024px) {
+            .flow-diagram { grid-template-columns: repeat(2, 1fr); }
+            .pipeline-stepper { flex-direction: column; align-items: stretch; }
+            .stepper-arrow { display: none; }
+        }
+
+        /* Offline Flow Diagram in Sidebar */
+        .flow-diagram-offline {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .offline-stepper-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.4rem;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
         /* Scrollbar styling */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-color); }
@@ -312,7 +454,7 @@
 <body>
     <header>
         <div class="logo">
-            <span>⚡ ROI-RAG Studio</span>
+            <span>⚡ PROJECT Studio</span>
         </div>
         <div class="status-badge">
             <div class="status-dot"></div>
@@ -324,6 +466,35 @@
         <!-- Sidebar: Indexing Control -->
         <div class="sidebar">
             <div class="card">
+                <div class="card-title">🏗️ ROI-RAG Offline Indexing Flow</div>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
+                    대용량 문서나 텍스트를 인덱싱할 때 거치는 4단계 전처리 및 증거 단락(EU) 구성 과정입니다.
+                </p>
+                <div class="flow-diagram-offline">
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">📦 Step 1</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">Document Chunking</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">텍스트 분할 및 불필요 공백·노이즈 정제</div>
+                    </div>
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">🔤 Step 2</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">Dense Embedding</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;"><code style="color: #60a5fa;">all-MiniLM-L6-v2</code>로 384차원 의미 벡터 변환</div>
+                    </div>
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">🕸️ Step 3</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">FAISS Graph Index</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">벡터 인덱싱 구축 및 후보 이웃 그래프 구축</div>
+                    </div>
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">⚖️ Step 4</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">Entropy EU Construction</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">중복/다양성 엔트로피 기반 Evidence Unit 압축</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-title">📁 Document Indexing</div>
                 <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
                     <p style="font-weight: 500; margin-bottom: 0.25rem;">Click to upload document (.txt)</p>
@@ -332,6 +503,22 @@
                 </div>
                 <textarea id="textInput" rows="6" placeholder="Paste your raw text or article here to build the ROI-RAG index..."></textarea>
                 <button class="btn" id="buildBtn" onclick="buildIndex()">🚀 Build ROI-RAG Index</button>
+
+                <!-- Live Offline Indexing Stepper -->
+                <div class="offline-stepper-grid" id="liveIndexingStepper" style="display: none;">
+                    <div class="stepper-item" id="idxStep1" style="justify-content: flex-start; text-align: left;">
+                        <span>1️⃣ Chunking & Cleaning...</span>
+                    </div>
+                    <div class="stepper-item" id="idxStep2" style="justify-content: flex-start; text-align: left;">
+                        <span>2️⃣ Dense Embedding (384-D)</span>
+                    </div>
+                    <div class="stepper-item" id="idxStep3" style="justify-content: flex-start; text-align: left;">
+                        <span>3️⃣ Building FAISS Vector Index</span>
+                    </div>
+                    <div class="stepper-item" id="idxStep4" style="justify-content: flex-start; text-align: left;">
+                        <span>4️⃣ Entropy-Guided EU Generation</span>
+                    </div>
+                </div>
             </div>
 
             <div class="card">
@@ -352,11 +539,68 @@
         <!-- Main Content: Query & Results -->
         <div class="main-content">
             <div class="card">
+                <div class="card-title">📐 ROI-RAG Execution Flow Architecture</div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                    각 질의(Query)는 단계별 정밀 필터링을 통해 환각(Hallucination) 없는 고품질 근거 기반 답변을 생성합니다.
+                </p>
+                <div class="flow-diagram">
+                    <div class="flow-step-card">
+                        <span class="flow-step-num">⚡ Step 1</span>
+                        <div class="flow-step-title">Query Embedding</div>
+                        <div class="flow-step-desc">질의를 로컬 임베딩(<code style="color: #60a5fa;">all-MiniLM-L6-v2</code>)을 통해 384차원 의미 벡터로 변환합니다.</div>
+                    </div>
+                    <div class="flow-step-card">
+                        <span class="flow-step-num">🔍 Step 2</span>
+                        <div class="flow-step-title">Candidate Retrieval</div>
+                        <div class="flow-step-desc">메모리에 캐싱된 <code style="color: #60a5fa;">FAISS 인덱스</code>에서 상위 Top-K개 후보 이웃 단락을 초고속 탐색합니다.</div>
+                    </div>
+                    <div class="flow-step-card">
+                        <span class="flow-step-num">⚖️ Step 3</span>
+                        <div class="flow-step-title">Entropy Regime Filter</div>
+                        <div class="flow-step-desc">중복(RE)·다양성(DE) 엔트로피를 분석하여 <span class="regime-badge regime-LOW">LOW</span> <span class="regime-badge regime-MEDIUM">MED</span> <span class="regime-badge regime-HIGH">HIGH</span> 모드를 동적 부여합니다.</div>
+                    </div>
+                    <div class="flow-step-card">
+                        <span class="flow-step-num">🤖 Step 4</span>
+                        <div class="flow-step-title">Grounded Synthesis</div>
+                        <div class="flow-step-desc">VRAM에 상주된 LLM(<code style="color: #10b981;">{{ llm_backend | upper }}</code>)에 핵심 근거를 주입하여 최종 답변을 생성합니다.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-title">💡 Online Inference & Retrieval</div>
                 <div class="query-bar">
                     <input type="text" id="queryInput" placeholder="Ask any question regarding the indexed documents..." onkeypress="if(event.key === 'Enter') executeQuery()">
                     <button class="btn" style="width: 140px;" onclick="executeQuery()" id="queryBtn">Ask Query</button>
                 </div>
+                <div class="sample-queries" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-color);">⚡ Redundant Dataset Samples:</span>
+                    <button class="sample-badge" onclick="setAndRunQuery('How many false distress calls did the Coast Guard hoax caller make from Annapolis?')">🚨 Coast Guard Hoax Calls</button>
+                    <button class="sample-badge" onclick="setAndRunQuery('What happened to Dallas Police officer Rogelio Santander at the Home Depot?')">🚔 Dallas Police Shooting</button>
+                    <button class="sample-badge" onclick="setAndRunQuery('Where was the stolen Picasso painting La Coiffeuse found after being shipped from Belgium?')">🎨 Picasso Painting Recovery</button>
+                    <button class="sample-badge" onclick="setAndRunQuery('Why did the Siskiyou County Board of Supervisors vote to secede and form the State of Jefferson?')">🌲 State of Jefferson Secession</button>
+                    <button class="sample-badge" onclick="setAndRunQuery('Why did Microsoft acquire Nokia cell phone business?')">📱 Microsoft & Nokia Deal</button>
+                </div>
+
+                <!-- Live RAG Execution Stepper Bar -->
+                <div class="pipeline-stepper" id="livePipelineStepper" style="display: none;">
+                    <div class="stepper-item" id="flowStep1">
+                        <span>1️⃣ Embedding Query</span>
+                    </div>
+                    <span class="stepper-arrow">➔</span>
+                    <div class="stepper-item" id="flowStep2">
+                        <span>2️⃣ FAISS Retrieval</span>
+                    </div>
+                    <span class="stepper-arrow">➔</span>
+                    <div class="stepper-item" id="flowStep3">
+                        <span>3️⃣ Entropy Filter</span>
+                    </div>
+                    <span class="stepper-arrow">➔</span>
+                    <div class="stepper-item" id="flowStep4">
+                        <span>4️⃣ Grounded LLM</span>
+                    </div>
+                </div>
+
                 <div class="answer-box" id="answerBox">Type a query above to see the grounded ROI-RAG answer and retrieved Evidence Units.</div>
                 <div class="metrics-bar" id="metricsBar" style="display: none;">
                     <span id="metricLatency">⏱ Latency: 0 ms</span>
@@ -375,17 +619,108 @@
     </main>
 
     <script>
+        const TUNNEL_HEADERS = {
+            'Bypass-Tunnel-Reminder': 'true',
+            'bypass-tunnel-reminder': 'true',
+            'ngrok-skip-browser-warning': 'true'
+        };
+
+        async function parseJsonResponse(res) {
+            const text = await res.text();
+            if (text.trim().startsWith('<') || text.includes('Bypass tunnel password') || text.includes('Click to Continue')) {
+                throw new Error("loca.lt 보안 안내 창(Friendly Reminder)이 감지되었습니다! 브라우저 새 탭에서 https://project-studio-rag.loca.lt 로 접속하여 화면의 파란색 'Click to Continue' 버튼을 한 번 눌러주시거나 접속 IP(219.241.82.8)를 입력하신 뒤 다시 버튼을 눌러주세요.");
+            }
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                throw new Error("서버 응답 파싱 오류 (응답 내용: " + text.substring(0, 50) + "...)");
+            }
+        }
+
         // Load current index status on page start
         window.addEventListener('DOMContentLoaded', fetchCurrentIndex);
 
         async function fetchCurrentIndex() {
             try {
-                const res = await fetch('/api/current-index');
-                const data = await res.json();
+                const res = await fetch('/api/current-index', { headers: TUNNEL_HEADERS });
+                const data = await parseJsonResponse(res);
                 document.getElementById('statSegments').innerText = data.segments_count || 0;
                 document.getElementById('statEUs').innerText = data.eus_count || 0;
             } catch (e) {
                 console.error("Failed to fetch current index:", e);
+            }
+        }
+
+        let idxTimer1, idxTimer2, idxTimer3;
+
+        function startIndexingStepper() {
+            const stepper = document.getElementById('liveIndexingStepper');
+            if (!stepper) return;
+            stepper.style.display = 'grid';
+
+            clearTimeout(idxTimer1); clearTimeout(idxTimer2); clearTimeout(idxTimer3);
+            ['idxStep1', 'idxStep2', 'idxStep3', 'idxStep4'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.className = 'stepper-item'; el.style.borderColor = ''; el.style.color = ''; }
+            });
+
+            if (document.getElementById('idxStep1')) {
+                document.getElementById('idxStep1').className = 'stepper-item active';
+                document.getElementById('idxStep1').innerHTML = '⏳ 1️⃣ Chunking & Cleaning...';
+                document.getElementById('idxStep2').innerHTML = '⏸️ 2️⃣ Dense Embedding (384-D)';
+                document.getElementById('idxStep3').innerHTML = '⏸️ 3️⃣ Building FAISS Vector Index';
+                document.getElementById('idxStep4').innerHTML = '⏸️ 4️⃣ Entropy-Guided EU Generation';
+            }
+
+            idxTimer1 = setTimeout(() => {
+                if (document.getElementById('idxStep1')) {
+                    document.getElementById('idxStep1').className = 'stepper-item done';
+                    document.getElementById('idxStep1').innerHTML = '✓ 1️⃣ Text Chunked & Cleaned';
+                    document.getElementById('idxStep2').className = 'stepper-item active';
+                    document.getElementById('idxStep2').innerHTML = '⏳ 2️⃣ Vectorizing with MiniLM...';
+                }
+            }, 350);
+
+            idxTimer2 = setTimeout(() => {
+                if (document.getElementById('idxStep2')) {
+                    document.getElementById('idxStep2').className = 'stepper-item done';
+                    document.getElementById('idxStep2').innerHTML = '✓ 2️⃣ 384-D Vectors Embedded';
+                    document.getElementById('idxStep3').className = 'stepper-item active';
+                    document.getElementById('idxStep3').innerHTML = '⏳ 3️⃣ Constructing FAISS Graph...';
+                }
+            }, 800);
+
+            idxTimer3 = setTimeout(() => {
+                if (document.getElementById('idxStep3')) {
+                    document.getElementById('idxStep3').className = 'stepper-item done';
+                    document.getElementById('idxStep3').innerHTML = '✓ 3️⃣ FAISS Candidate Neighbors Built';
+                    document.getElementById('idxStep4').className = 'stepper-item active';
+                    document.getElementById('idxStep4').innerHTML = '⏳ 4️⃣ Generating Entropy Evidence Units...';
+                }
+            }, 1250);
+        }
+
+        function completeIndexingStepper(data) {
+            clearTimeout(idxTimer1); clearTimeout(idxTimer2); clearTimeout(idxTimer3);
+            if (document.getElementById('idxStep1')) {
+                document.getElementById('idxStep1').className = 'stepper-item done';
+                document.getElementById('idxStep1').innerHTML = `✓ 1️⃣ Segments Chunked (${data.segments_count})`;
+                document.getElementById('idxStep2').className = 'stepper-item done';
+                document.getElementById('idxStep2').innerHTML = '✓ 2️⃣ 384-D Dense Vectors Cached';
+                document.getElementById('idxStep3').className = 'stepper-item done';
+                document.getElementById('idxStep3').innerHTML = '✓ 3️⃣ FAISS Graph Index Updated';
+                document.getElementById('idxStep4').className = 'stepper-item done';
+                document.getElementById('idxStep4').innerHTML = `✓ 4️⃣ Created ${data.eus_count} Evidence Units`;
+            }
+        }
+
+        function errorIndexingStepper(msg) {
+            clearTimeout(idxTimer1); clearTimeout(idxTimer2); clearTimeout(idxTimer3);
+            if (document.getElementById('idxStep4')) {
+                document.getElementById('idxStep4').className = 'stepper-item active';
+                document.getElementById('idxStep4').style.borderColor = '#ef4444';
+                document.getElementById('idxStep4').style.color = '#ef4444';
+                document.getElementById('idxStep4').innerHTML = `❌ Indexing Failed: ${msg}`;
             }
         }
 
@@ -398,18 +733,22 @@
             const btn = document.getElementById('buildBtn');
             btn.disabled = true;
             btn.innerHTML = "⏳ Indexing File...";
+            startIndexingStepper();
 
             try {
-                const res = await fetch('/api/upload-file', { method: 'POST', body: formData });
-                const data = await res.json();
+                const res = await fetch('/api/upload-file', { method: 'POST', headers: TUNNEL_HEADERS, body: formData });
+                const data = await parseJsonResponse(res);
                 if (data.status === "success") {
                     document.getElementById('statSegments').innerText = data.segments_count;
                     document.getElementById('statEUs').innerText = data.eus_count;
+                    completeIndexingStepper(data);
                     alert(`Successfully indexed file '${file.name}' with ${data.eus_count} Evidence Units!`);
                 } else {
+                    errorIndexingStepper(data.detail || "Upload failed");
                     alert("Error: " + (data.detail || "Upload failed"));
                 }
             } catch (e) {
+                errorIndexingStepper(e.message);
                 alert("Upload failed: " + e.message);
             } finally {
                 btn.disabled = false;
@@ -428,29 +767,40 @@
             const btn = document.getElementById('buildBtn');
             btn.disabled = true;
             btn.innerHTML = "⏳ Building Index...";
+            startIndexingStepper();
 
             try {
                 const res = await fetch('/api/build-index', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
-                const data = await res.json();
+                const data = await parseJsonResponse(res);
                 if (data.status === "success") {
                     document.getElementById('statSegments').innerText = data.segments_count;
                     document.getElementById('statEUs').innerText = data.eus_count;
                     document.getElementById('textInput').value = "";
+                    completeIndexingStepper(data);
                     alert(`Index built successfully! Created ${data.eus_count} Evidence Units.`);
                 } else {
+                    errorIndexingStepper(data.detail || "Indexing failed");
                     alert("Error: " + (data.detail || "Indexing failed"));
                 }
             } catch (e) {
+                errorIndexingStepper(e.message);
                 alert("Build failed: " + e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "🚀 Build ROI-RAG Index";
             }
         }
+
+        function setAndRunQuery(question) {
+            document.getElementById('queryInput').value = question;
+            executeQuery();
+        }
+
+        let stepTimer1, stepTimer2, stepTimer3;
 
         async function executeQuery() {
             const query = document.getElementById('queryInput').value.trim();
@@ -460,23 +810,86 @@
             const answerBox = document.getElementById('answerBox');
             const euList = document.getElementById('euList');
             const metricsBar = document.getElementById('metricsBar');
+            const stepper = document.getElementById('livePipelineStepper');
 
             btn.disabled = true;
             btn.innerHTML = "⏳ Thinking...";
             answerBox.innerHTML = "<span style='color: var(--text-secondary);'>Retrieving Evidence Units and generating grounded answer...</span>";
             euList.innerHTML = "";
             metricsBar.style.display = "none";
+            stepper.style.display = "flex";
+
+            // Reset and animate pipeline stepper
+            clearTimeout(stepTimer1);
+            clearTimeout(stepTimer2);
+            clearTimeout(stepTimer3);
+
+            ['flowStep1', 'flowStep2', 'flowStep3', 'flowStep4'].forEach(id => {
+                const el = document.getElementById(id);
+                el.className = 'stepper-item';
+                el.style.borderColor = '';
+                el.style.color = '';
+            });
+
+            document.getElementById('flowStep1').className = 'stepper-item active';
+            document.getElementById('flowStep1').innerHTML = '⏳ 1️⃣ Embedding Query...';
+            document.getElementById('flowStep2').innerHTML = '⏸️ 2️⃣ FAISS Retrieval';
+            document.getElementById('flowStep3').innerHTML = '⏸️ 3️⃣ Entropy Filter';
+            document.getElementById('flowStep4').innerHTML = '⏸️ 4️⃣ Grounded LLM';
+
+            stepTimer1 = setTimeout(() => {
+                document.getElementById('flowStep1').className = 'stepper-item done';
+                document.getElementById('flowStep1').innerHTML = '✓ 1️⃣ Embedded (384-D)';
+                document.getElementById('flowStep2').className = 'stepper-item active';
+                document.getElementById('flowStep2').innerHTML = '⏳ 2️⃣ Searching FAISS Index...';
+            }, 300);
+
+            stepTimer2 = setTimeout(() => {
+                document.getElementById('flowStep2').className = 'stepper-item done';
+                document.getElementById('flowStep2').innerHTML = '✓ 2️⃣ Candidate EUs Retrieved';
+                document.getElementById('flowStep3').className = 'stepper-item active';
+                document.getElementById('flowStep3').innerHTML = '⏳ 3️⃣ Evaluating RE/DE Regimes...';
+            }, 650);
+
+            stepTimer3 = setTimeout(() => {
+                document.getElementById('flowStep3').className = 'stepper-item done';
+                document.getElementById('flowStep3').innerHTML = '✓ 3️⃣ Entropy Regimes Assigned';
+                document.getElementById('flowStep4').className = 'stepper-item active';
+                document.getElementById('flowStep4').innerHTML = '⏳ 4️⃣ LLM Generating Grounded Answer...';
+            }, 1000);
 
             try {
                 const res = await fetch('/api/query', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query })
                 });
-                const data = await res.json();
+                const data = await parseJsonResponse(res);
+
+                clearTimeout(stepTimer1);
+                clearTimeout(stepTimer2);
+                clearTimeout(stepTimer3);
+
                 if (data.status === "success" && data.roi_rag) {
                     const roi = data.roi_rag;
                     answerBox.innerText = roi.answer;
+
+                    // Update Stepper with live precise metrics
+                    document.getElementById('flowStep1').className = 'stepper-item done';
+                    document.getElementById('flowStep1').innerHTML = '✓ 1️⃣ Embedded (384-D)';
+
+                    const euCount = roi.raw_contexts ? roi.raw_contexts.length : 0;
+                    document.getElementById('flowStep2').className = 'stepper-item done';
+                    document.getElementById('flowStep2').innerHTML = `✓ 2️⃣ FAISS Top-K (${euCount} EUs)`;
+
+                    const regimesUsed = roi.raw_contexts && roi.raw_contexts.length > 0
+                        ? Array.from(new Set(roi.raw_contexts.map(eu => eu.regime))).join(', ')
+                        : 'N/A';
+                    document.getElementById('flowStep3').className = 'stepper-item done';
+                    document.getElementById('flowStep3').innerHTML = `✓ 3️⃣ Regimes: [${regimesUsed}]`;
+
+                    document.getElementById('flowStep4').className = 'stepper-item done';
+                    document.getElementById('flowStep4').innerHTML = `✓ 4️⃣ Grounded Synthesis (${roi.latency_ms} ms)`;
 
                     // Display metrics
                     document.getElementById('metricLatency').innerText = `⏱ Latency: ${roi.latency_ms} ms`;
@@ -504,9 +917,20 @@
                     }
                 } else {
                     answerBox.innerText = "Error: " + (data.detail || "Query execution failed.");
+                    document.getElementById('flowStep4').className = 'stepper-item active';
+                    document.getElementById('flowStep4').style.borderColor = '#ef4444';
+                    document.getElementById('flowStep4').style.color = '#ef4444';
+                    document.getElementById('flowStep4').innerHTML = '❌ 4️⃣ Pipeline Failed';
                 }
             } catch (e) {
+                clearTimeout(stepTimer1);
+                clearTimeout(stepTimer2);
+                clearTimeout(stepTimer3);
                 answerBox.innerText = "Query failed: " + e.message;
+                document.getElementById('flowStep4').className = 'stepper-item active';
+                document.getElementById('flowStep4').style.borderColor = '#ef4444';
+                document.getElementById('flowStep4').style.color = '#ef4444';
+                document.getElementById('flowStep4').innerHTML = '❌ 4️⃣ Pipeline Error';
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "Ask Query";
