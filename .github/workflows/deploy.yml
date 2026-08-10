@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Trigger Deployment Script
-        # 러너가 설치된 경로에 상관없이, 프로젝트 디렉토리로 이동하여 스크립트 실행
+        # 러너가 기본적으로 PowerShell을 사용하므로 cmd를 명시하여 실행합니다.
         run: |
           cd "C:\Users\s525h\git_repo\project_poc"
-          call deploy.bat
+          cmd /c deploy.bat
