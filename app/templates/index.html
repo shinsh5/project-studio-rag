@@ -444,6 +444,85 @@
             margin-top: 0.5rem;
         }
 
+        /* Chunking Strategy Toggle */
+        .strategy-toggle {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .strategy-btn {
+            flex: 1;
+            padding: 0.6rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-color);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .strategy-btn.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .stb-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+            padding: 0.85rem;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .stb-options.hidden { display: none; }
+
+        .param-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .param-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            flex: 1;
+        }
+
+        .param-input {
+            width: 72px;
+            padding: 0.35rem 0.5rem;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            text-align: right;
+            resize: none;
+        }
+
+        .param-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .strategy-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--primary-color);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
         /* Scrollbar styling */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-color); }
@@ -495,6 +574,32 @@
             </div>
 
             <div class="card">
+                <div class="card-title">⚙️ Chunking Strategy</div>
+                <div class="strategy-toggle">
+                    <button class="strategy-btn active" id="btnRoiRag" onclick="setStrategy('roi_rag')">ROI-RAG</button>
+                    <button class="strategy-btn" id="btnStb" onclick="setStrategy('small_to_big')">Small-to-Big</button>
+                </div>
+                <div class="stb-options hidden" id="stbOptions">
+                    <div class="param-row">
+                        <span class="param-label">Leaf Size (words)</span>
+                        <input class="param-input" type="number" id="stbLeafSize" value="80" min="10" max="500">
+                    </div>
+                    <div class="param-row">
+                        <span class="param-label">Leaf Overlap (words)</span>
+                        <input class="param-input" type="number" id="stbLeafOverlap" value="20" min="0" max="200">
+                    </div>
+                    <div class="param-row">
+                        <span class="param-label">Leaves per Parent</span>
+                        <input class="param-input" type="number" id="stbLeavesPerParent" value="3" min="1" max="10">
+                    </div>
+                    <div class="param-row">
+                        <span class="param-label">AutoMerge Threshold</span>
+                        <input class="param-input" type="number" id="stbAutoMerge" value="0.0" min="0" max="1" step="0.1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <div class="card-title">📁 Document Indexing</div>
                 <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
                     <p style="font-weight: 500; margin-bottom: 0.25rem;">Click to upload document (.txt)</p>
@@ -532,6 +637,9 @@
                         <div class="stat-value" id="statEUs">0</div>
                         <div class="stat-label">Evidence Units</div>
                     </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
+                    Strategy: <span class="strategy-badge" id="statStrategy">—</span>
                 </div>
             </div>
         </div>
@@ -637,6 +745,25 @@
             }
         }
 
+        let currentStrategy = 'roi_rag';
+
+        function setStrategy(strategy) {
+            currentStrategy = strategy;
+            document.getElementById('btnRoiRag').className = 'strategy-btn' + (strategy === 'roi_rag' ? ' active' : '');
+            document.getElementById('btnStb').className = 'strategy-btn' + (strategy === 'small_to_big' ? ' active' : '');
+            document.getElementById('stbOptions').className = 'stb-options' + (strategy === 'small_to_big' ? '' : ' hidden');
+        }
+
+        function getStbParams() {
+            return {
+                chunking_strategy: currentStrategy,
+                stb_leaf_size: parseInt(document.getElementById('stbLeafSize').value) || 80,
+                stb_leaf_overlap: parseInt(document.getElementById('stbLeafOverlap').value) || 20,
+                stb_leaves_per_parent: parseInt(document.getElementById('stbLeavesPerParent').value) || 3,
+                automerge_threshold: parseFloat(document.getElementById('stbAutoMerge').value) || 0.0,
+            };
+        }
+
         // Load current index status on page start
         window.addEventListener('DOMContentLoaded', fetchCurrentIndex);
 
@@ -646,6 +773,8 @@
                 const data = await parseJsonResponse(res);
                 document.getElementById('statSegments').innerText = data.segments_count || 0;
                 document.getElementById('statEUs').innerText = data.eus_count || 0;
+                const strategy = data.chunking_strategy || 'roi_rag';
+                document.getElementById('statStrategy').innerText = strategy === 'small_to_big' ? 'Small-to-Big' : 'ROI-RAG';
             } catch (e) {
                 console.error("Failed to fetch current index:", e);
             }
@@ -736,11 +865,14 @@
             startIndexingStepper();
 
             try {
+                const params = getStbParams();
+                Object.entries(params).forEach(([k, v]) => formData.append(k, v));
                 const res = await fetch('/api/upload-file', { method: 'POST', headers: TUNNEL_HEADERS, body: formData });
                 const data = await parseJsonResponse(res);
                 if (data.status === "success") {
                     document.getElementById('statSegments').innerText = data.segments_count;
                     document.getElementById('statEUs').innerText = data.eus_count;
+                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
                     completeIndexingStepper(data);
                     alert(`Successfully indexed file '${file.name}' with ${data.eus_count} Evidence Units!`);
                 } else {
@@ -773,12 +905,13 @@
                 const res = await fetch('/api/build-index', {
                     method: 'POST',
                     headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
+                    body: JSON.stringify({ text, ...getStbParams() })
                 });
                 const data = await parseJsonResponse(res);
                 if (data.status === "success") {
                     document.getElementById('statSegments').innerText = data.segments_count;
                     document.getElementById('statEUs').innerText = data.eus_count;
+                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
                     document.getElementById('textInput').value = "";
                     completeIndexingStepper(data);
                     alert(`Index built successfully! Created ${data.eus_count} Evidence Units.`);

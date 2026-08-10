@@ -36,6 +36,11 @@ class QueryRequest(BaseModel):
 
 class BuildIndexRequest(BaseModel):
     text: str
+    chunking_strategy: str = "roi_rag"
+    stb_leaf_size: int = 80
+    stb_leaf_overlap: int = 20
+    stb_leaves_per_parent: int = 3
+    automerge_threshold: float = 0.0
 
 # Endpoints
 @app.get("/", response_class=HTMLResponse)
@@ -57,6 +62,7 @@ def get_current_index():
             "status": "success",
             "segments_count": len(index_data.get("segments", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
+            "chunking_strategy": index_data.get("chunking_strategy", "roi_rag"),
             "evidence_units": index_data.get("evidence_units", []),
             "segments": index_data.get("segments", [])
         }
@@ -65,24 +71,34 @@ def get_current_index():
             "status": "empty",
             "segments_count": 0,
             "eus_count": 0,
+            "chunking_strategy": "roi_rag",
             "evidence_units": [],
             "segments": []
         }
+
+def _apply_chunking_config(request: BuildIndexRequest):
+    config.CHUNKING_STRATEGY = request.chunking_strategy
+    config.STB_LEAF_SIZE = request.stb_leaf_size
+    config.STB_LEAF_OVERLAP = request.stb_leaf_overlap
+    config.STB_LEAVES_PER_PARENT = request.stb_leaves_per_parent
+    config.AUTOMERGE_THRESHOLD = request.automerge_threshold
 
 @app.post("/api/build-index")
 def build_index(request: BuildIndexRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text input cannot be empty.")
-        
+
     try:
+        _apply_chunking_config(request)
         index_data = build_roi_rag_index(request.text)
         global roi_pipeline
         roi_pipeline = get_roi_rag_pipeline()
-        
+
         return {
             "status": "success",
             "segments_count": len(index_data.get("segments", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
+            "chunking_strategy": request.chunking_strategy,
             "evidence_units": index_data.get("evidence_units", [])
         }
     except Exception as e:
@@ -91,20 +107,37 @@ def build_index(request: BuildIndexRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/upload-file")
-def upload_file(file: UploadFile = File(...)):
+def upload_file(
+    file: UploadFile = File(...),
+    chunking_strategy: str = "roi_rag",
+    stb_leaf_size: int = 80,
+    stb_leaf_overlap: int = 20,
+    stb_leaves_per_parent: int = 3,
+    automerge_threshold: float = 0.0,
+):
     try:
         content = file.file.read()
         text = content.decode("utf-8")
-        
+
+        req = BuildIndexRequest(
+            text=text,
+            chunking_strategy=chunking_strategy,
+            stb_leaf_size=stb_leaf_size,
+            stb_leaf_overlap=stb_leaf_overlap,
+            stb_leaves_per_parent=stb_leaves_per_parent,
+            automerge_threshold=automerge_threshold,
+        )
+        _apply_chunking_config(req)
         index_data = build_roi_rag_index(text)
         global roi_pipeline
         roi_pipeline = get_roi_rag_pipeline()
-        
+
         return {
             "status": "success",
             "filename": file.filename,
             "segments_count": len(index_data.get("segments", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
+            "chunking_strategy": chunking_strategy,
             "evidence_units": index_data.get("evidence_units", [])
         }
     except UnicodeDecodeError:
