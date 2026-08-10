@@ -1,0 +1,17 @@
+name: Auto Deploy to Windows PC
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, windows]
+
+    steps:
+      - name: Trigger Deployment Script
+        # 러너가 설치된 경로에 상관없이, 프로젝트 디렉토리로 이동하여 스크립트 실행
+        run: |
+          cd "C:\Users\s525h\git_repo\project_poc"
+          call deploy.bat
