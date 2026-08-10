@@ -42,8 +42,8 @@ class RagasGoogleREST(BaseRagasLLM):
         delay = 2
         for i in range(retries):
             with api_lock:
-                # 15 RPM(분당 15회) 제한을 위해 호출 전 무조건 4.1초 대기
-                time.sleep(4.1) 
+                # 빠른 웹 GUI 테스트를 위해 1.0초로 단축 (대량 평가 시 429 에러 주의)
+                time.sleep(1.0) 
                 print(f"[RAGAS LLM-Judge] API 요청 중... (attempt {i+1})")
                 try:
                     response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=30)
@@ -167,7 +167,15 @@ def main():
         print("\n==================================================")
         print("Evaluation Results (Scores)")
         print("==================================================")
-        print(result)
+        try:
+            df = result.to_pandas()
+            print(df.to_string())
+        except Exception:
+            # Pandas 변환 실패 시 속성 딕셔너리로 우회 출력
+            if hasattr(result, 'scores'):
+                print(result.scores)
+            else:
+                print(result)
     except Exception as e:
         print("\nError during evaluation:", type(e).__name__, str(e))
 

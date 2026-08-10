@@ -722,7 +722,6 @@
                     <strong style="color: var(--accent-color); margin-bottom: 0.5rem; display: block;">🏆 RAGAS Evaluation Score</strong>
                     <div style="display: flex; gap: 2rem; font-weight: 600;">
                         <span id="ragasFaithfulness">Faithfulness: 0.0</span>
-                        <span id="ragasRelevancy">Answer Relevancy: 0.0</span>
                     </div>
                 </div>
             </div>
@@ -1115,7 +1114,6 @@
                 
                 if (data.status === "success" && data.scores) {
                     document.getElementById('ragasFaithfulness').innerText = `Faithfulness: ${data.scores.faithfulness.toFixed(4)}`;
-                    document.getElementById('ragasRelevancy').innerText = `Answer Relevancy: ${data.scores.answer_relevancy.toFixed(4)}`;
                     ragasResult.style.display = 'block';
                     btn.innerHTML = "✅ 평가 완료";
                 } else {

@@ -209,7 +209,7 @@ def evaluate_single(request: EvaluateSingleRequest):
         }]
         
         ds = to_ragas_dataset(results)
-        metrics = [faithfulness, answer_relevancy]
+        metrics = [faithfulness]
         
         eval_result = evaluate(
             dataset=ds,
@@ -219,11 +219,19 @@ def evaluate_single(request: EvaluateSingleRequest):
             run_config=rc
         )
         
+        try:
+            df = eval_result.to_pandas()
+            f_score = float(df["faithfulness"].iloc[0]) if "faithfulness" in df.columns else 0.0
+        except Exception:
+            try:
+                f_score = float(eval_result["faithfulness"])
+            except:
+                f_score = 0.0
+
         return {
             "status": "success",
             "scores": {
-                "faithfulness": eval_result.get("faithfulness", 0.0),
-                "answer_relevancy": eval_result.get("answer_relevancy", 0.0)
+                "faithfulness": f_score
             }
         }
     except Exception as e:
