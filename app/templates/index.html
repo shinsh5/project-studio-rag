@@ -602,10 +602,20 @@
                 </div>
 
                 <div class="answer-box" id="answerBox">Type a query above to see the grounded ROI-RAG answer and retrieved Evidence Units.</div>
-                <div class="metrics-bar" id="metricsBar" style="display: none;">
-                    <span id="metricLatency">⏱ Latency: 0 ms</span>
-                    <span id="metricCalls">🔌 API Calls: 0</span>
-                    <span id="metricTokens">🪙 Tokens (Est.): 0</span>
+                <div class="metrics-bar" id="metricsBar" style="display: none; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 1.5rem;">
+                        <span id="metricLatency">⏱ Latency: 0 ms</span>
+                        <span id="metricCalls">🔌 API Calls: 0</span>
+                        <span id="metricTokens">🪙 Tokens (Est.): 0</span>
+                    </div>
+                    <button class="sample-badge" id="btnEvaluate" style="border-color: var(--accent-color); color: var(--accent-color);" onclick="evaluateRagas()">🎯 RAGAS 평가하기</button>
+                </div>
+                <div id="ragasResult" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
+                    <strong style="color: var(--accent-color); margin-bottom: 0.5rem; display: block;">🏆 RAGAS Evaluation Score</strong>
+                    <div style="display: flex; gap: 2rem; font-weight: 600;">
+                        <span id="ragasFaithfulness">Faithfulness: 0.0</span>
+                        <span id="ragasRelevancy">Answer Relevancy: 0.0</span>
+                    </div>
                 </div>
             </div>
 
@@ -811,6 +821,10 @@
             const euList = document.getElementById('euList');
             const metricsBar = document.getElementById('metricsBar');
             const stepper = document.getElementById('livePipelineStepper');
+            
+            document.getElementById('ragasResult').style.display = 'none';
+            document.getElementById('btnEvaluate').innerHTML = '🎯 RAGAS 평가하기';
+            document.getElementById('btnEvaluate').disabled = false;
 
             btn.disabled = true;
             btn.innerHTML = "⏳ Thinking...";
@@ -915,6 +929,14 @@
                             euList.appendChild(euDiv);
                         });
                     }
+
+                    // Save data for RAGAS evaluation
+                    window.lastQueryData = {
+                        question: query,
+                        answer: roi.answer,
+                        contexts: roi.retrieved_contexts || []
+                    };
+
                 } else {
                     answerBox.innerText = "Error: " + (data.detail || "Query execution failed.");
                     document.getElementById('flowStep4').className = 'stepper-item active';
@@ -934,6 +956,44 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "Ask Query";
+            }
+        }
+
+        async function evaluateRagas() {
+            if (!window.lastQueryData) {
+                alert("먼저 질문을 통해 RAG 답변을 생성해주세요!");
+                return;
+            }
+            
+            const btn = document.getElementById('btnEvaluate');
+            const ragasResult = document.getElementById('ragasResult');
+            
+            btn.disabled = true;
+            btn.innerHTML = "⏳ 채점 중... (약 5초 소요)";
+            ragasResult.style.display = 'none';
+            
+            try {
+                const res = await fetch('/api/evaluate-single', {
+                    method: 'POST',
+                    headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(window.lastQueryData)
+                });
+                const data = await parseJsonResponse(res);
+                
+                if (data.status === "success" && data.scores) {
+                    document.getElementById('ragasFaithfulness').innerText = `Faithfulness: ${data.scores.faithfulness.toFixed(4)}`;
+                    document.getElementById('ragasRelevancy').innerText = `Answer Relevancy: ${data.scores.answer_relevancy.toFixed(4)}`;
+                    ragasResult.style.display = 'block';
+                    btn.innerHTML = "✅ 평가 완료";
+                } else {
+                    btn.innerHTML = "❌ 평가 실패";
+                    btn.disabled = false;
+                    alert("RAGAS 평가 중 오류가 발생했습니다: " + (data.detail || "알 수 없는 오류"));
+                }
+            } catch (e) {
+                btn.innerHTML = "❌ 평가 실패";
+                btn.disabled = false;
+                alert("RAGAS API 호출 실패: " + e.message);
             }
         }
     </script>
