@@ -23,9 +23,18 @@ LLM_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 # Embedding Configuration
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
 
+# Chunking Strategy: "roi_rag" | "small_to_big"
+CHUNKING_STRATEGY = os.getenv("CHUNKING_STRATEGY", "roi_rag")
+
 # Segmenting (Chunking) Configuration
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 200))      # Target tokens/words per chunk
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 50))
+
+# Small-to-Big Configuration (CHUNKING_STRATEGY=small_to_big 일 때 사용)
+STB_LEAF_SIZE       = int(os.getenv("STB_LEAF_SIZE", 80))
+STB_LEAF_OVERLAP    = int(os.getenv("STB_LEAF_OVERLAP", 20))
+STB_LEAVES_PER_PARENT = int(os.getenv("STB_LEAVES_PER_PARENT", 3))   # parent 1개당 leaf 몇 개
+AUTOMERGE_THRESHOLD = float(os.getenv("AUTOMERGE_THRESHOLD", 0.0))    # EU 내 같은 parent 비율 기준
 
 # Candidate Neighborhood Configuration
 NEIGHBORHOOD_K = int(os.getenv("NEIGHBORHOOD_K", 10))  # Number of semantic neighbors

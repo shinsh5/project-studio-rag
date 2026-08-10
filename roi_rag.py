@@ -5,6 +5,7 @@ LLM 기반 최종 답변 추론을 담당합니다.
 """
 import os
 import time
+from collections import Counter
 import config
 import llm_client
 from indexer import load_roi_rag_index
@@ -71,22 +72,60 @@ def get_roi_rag_pipeline():
         retrieved_eus = []
         context_parts = []
 
+        is_stb = index_data.get("chunking_strategy") == "small_to_big"
+        parent_chunks = index_data.get("parent_chunks", [])
+        leaf_to_parent = index_data.get("leaf_to_parent", [])
+
         for idx, score in zip(eu_indices, similarity_scores):
             if idx >= len(evidence_units):
                 continue
             eu = evidence_units[idx]
             retrieved_eus.append(eu)
 
-            supporting_segs = [segments[s_idx] for s_idx in eu["segment_indices"] if s_idx < len(segments)]
-            # Hybrid Context Strategy: Provide the condensed summary AND top-3 representative raw snippets
-            representative_segments = "\n".join([f"- {seg}" for seg in supporting_segs[:3]]) if supporting_segs else ""
+            if is_stb and parent_chunks and leaf_to_parent:
+                # EU 내 각 segment가 속한 parent를 집계
+                seg_indices = [s_idx for s_idx in eu["segment_indices"] if s_idx < len(leaf_to_parent)]
+                parent_ids = [leaf_to_parent[s_idx] for s_idx in seg_indices]
+                parent_counter = Counter(parent_ids)
 
-            eu_text = (
-                f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
-                f"RE: {eu['re']}, DE: {eu['de']})\n"
-                f"Summary: {eu['summary']}\n"
-                f"Top Original Snippets:\n{representative_segments}"
-            )
+                # AUTOMERGE_THRESHOLD 이상인 parent 청크를 컨텍스트로 사용
+                selected_parents = [
+                    pid for pid, cnt in parent_counter.items()
+                    if cnt / len(seg_indices) >= config.AUTOMERGE_THRESHOLD
+                ]
+
+                if selected_parents:
+                    parent_texts = "\n\n".join([
+                        f"[Parent Chunk #{pid}]\n{parent_chunks[pid]}"
+                        for pid in sorted(selected_parents)
+                        if pid < len(parent_chunks)
+                    ])
+                    eu_text = (
+                        f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
+                        f"RE: {eu['re']}, DE: {eu['de']})\n"
+                        f"Summary: {eu['summary']}\n"
+                        f"Extended Context (Small-to-Big):\n{parent_texts}"
+                    )
+                else:
+                    # threshold 미달 시 leaf 원문 그대로
+                    supporting_segs = [segments[s_idx] for s_idx in eu["segment_indices"] if s_idx < len(segments)]
+                    raw_text = "\n".join([f"- {seg}" for seg in supporting_segs])
+                    eu_text = (
+                        f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
+                        f"RE: {eu['re']}, DE: {eu['de']})\n"
+                        f"Summary: {eu['summary']}\n"
+                        f"Top Original Snippets:\n{raw_text}"
+                    )
+            else:
+                supporting_segs = [segments[s_idx] for s_idx in eu["segment_indices"] if s_idx < len(segments)]
+                # Hybrid Context Strategy: Provide the condensed summary AND top-3 representative raw snippets
+                representative_segments = "\n".join([f"- {seg}" for seg in supporting_segs[:3]]) if supporting_segs else ""
+                eu_text = (
+                    f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
+                    f"RE: {eu['re']}, DE: {eu['de']})\n"
+                    f"Summary: {eu['summary']}\n"
+                    f"Top Original Snippets:\n{representative_segments}"
+                )
             context_parts.append(eu_text)
 
         context_str = "\n\n".join(context_parts)

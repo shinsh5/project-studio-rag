@@ -37,6 +37,26 @@ def segment_text(text: str) -> list[str]:
             
     return segments
 
+def create_parent_chunks(segments: list[str], leaves_per_parent: int) -> tuple[list[str], list[int]]:
+    """
+    Groups consecutive leaf segments into parent chunks.
+    Returns:
+        parent_chunks   : list of parent chunk texts
+        leaf_to_parent  : list mapping each segment index to its parent chunk index
+    """
+    parent_chunks = []
+    leaf_to_parent = []
+
+    for i in range(0, len(segments), leaves_per_parent):
+        group = segments[i:i + leaves_per_parent]
+        parent_chunks.append(" ".join(group))
+        parent_idx = len(parent_chunks) - 1
+        for _ in group:
+            leaf_to_parent.append(parent_idx)
+
+    return parent_chunks, leaf_to_parent
+
+
 def build_candidate_neighborhoods(embeddings: np.ndarray, k: int = config.NEIGHBORHOOD_K) -> tuple[list[list[int]], np.ndarray]:
     """
     For each segment, finds the indices of its top-K nearest semantic neighbors (including itself).
@@ -218,7 +238,20 @@ def build_roi_rag_index(text: str) -> dict:
     print("======================================================")
 
     # 1. Chunking
-    segments = segment_text(text)
+    is_stb = config.CHUNKING_STRATEGY == "small_to_big"
+
+    if is_stb:
+        # Small-to-Big: STB_LEAF_SIZE / STB_LEAF_OVERLAP 기준으로 leaf 생성
+        original_chunk_size = config.CHUNK_SIZE
+        original_chunk_overlap = config.CHUNK_OVERLAP
+        config.CHUNK_SIZE = config.STB_LEAF_SIZE
+        config.CHUNK_OVERLAP = config.STB_LEAF_OVERLAP
+        segments = segment_text(text)
+        config.CHUNK_SIZE = original_chunk_size
+        config.CHUNK_OVERLAP = original_chunk_overlap
+    else:
+        segments = segment_text(text)
+
     if not segments:
         print("[Indexer] No segments found.")
         return {"segments": [], "evidence_units": []}
@@ -226,6 +259,13 @@ def build_roi_rag_index(text: str) -> dict:
     if config.MAX_SEGMENTS and len(segments) > config.MAX_SEGMENTS:
         print(f"[Indexer] MAX_SEGMENTS={config.MAX_SEGMENTS}: truncating from {len(segments)} segments.")
         segments = segments[:config.MAX_SEGMENTS]
+
+    # Small-to-Big: parent 청크 생성 및 leaf_to_parent 매핑
+    parent_chunks = []
+    leaf_to_parent = []
+    if is_stb:
+        parent_chunks, leaf_to_parent = create_parent_chunks(segments, config.STB_LEAVES_PER_PARENT)
+        print(f"[Indexer] STB: {len(segments)} leaf segments → {len(parent_chunks)} parent chunks.")
 
     print(f"[Indexer] Created {len(segments)} text segments.")
 
@@ -324,7 +364,12 @@ def build_roi_rag_index(text: str) -> dict:
     index_data = {
         "segments": segments,
         "evidence_units": evidence_units,
+        "chunking_strategy": config.CHUNKING_STRATEGY,
     }
+
+    if is_stb:
+        index_data["parent_chunks"] = parent_chunks
+        index_data["leaf_to_parent"] = leaf_to_parent
 
     with open(config.INDEX_PATH, "w", encoding="utf-8") as f:
         json.dump(index_data, f, ensure_ascii=False)
