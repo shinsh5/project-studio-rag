@@ -9,3 +9,5 @@ jinja2
 python-multipart
 pydantic
 ollama
+ragas
+datasets

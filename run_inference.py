@@ -80,7 +80,7 @@ def run_gui_mode(host: str = "127.0.0.1", port: int = 8000):
         sys.path.insert(0, project_root)
 
     try:
-        uvicorn.run("app.main:app", host=host, port=port, reload=False)
+        uvicorn.run("app.main:app", host=host, port=port, reload=True)
     except KeyboardInterrupt:
         print("\n[GUI Mode] Server stopped by user.")
     except Exception as e:

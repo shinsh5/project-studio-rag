@@ -170,3 +170,63 @@ def execute_query(request: QueryRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+class EvaluateSingleRequest(BaseModel):
+    question: str
+    answer: str
+    contexts: list[str]
+
+@app.post("/api/evaluate-single")
+def evaluate_single(request: EvaluateSingleRequest):
+    try:
+        from evaluate_ragas import RagasGoogleREST, to_ragas_dataset
+        from embeddings import get_embedding_model
+        from ragas import evaluate
+        from ragas.metrics import faithfulness, answer_relevancy
+        from ragas.run_config import RunConfig
+        
+        api_key = config.GEMINI_API_KEY
+        if not api_key:
+            raise HTTPException(status_code=400, detail="GEMINI_API_KEY is not configured.")
+            
+        eval_llm = RagasGoogleREST(model_name="gemini-3.1-flash-lite", api_key=api_key)
+        eval_embeddings = get_embedding_model()
+        
+        try:
+            from ragas.embeddings import LangchainEmbeddingsWrapper
+            ragas_embeddings = LangchainEmbeddingsWrapper(eval_embeddings)
+        except Exception:
+            ragas_embeddings = eval_embeddings
+            
+        rc = RunConfig(max_workers=1, timeout=600, max_retries=10)
+        
+        # We need a ground_truth to pass to_ragas_dataset, even if it's empty.
+        results = [{
+            "question": request.question,
+            "answer": request.answer,
+            "contexts": request.contexts,
+            "ground_truth": ""
+        }]
+        
+        ds = to_ragas_dataset(results)
+        metrics = [faithfulness, answer_relevancy]
+        
+        eval_result = evaluate(
+            dataset=ds,
+            metrics=metrics,
+            llm=eval_llm,
+            embeddings=ragas_embeddings,
+            run_config=rc
+        )
+        
+        return {
+            "status": "success",
+            "scores": {
+                "faithfulness": eval_result.get("faithfulness", 0.0),
+                "answer_relevancy": eval_result.get("answer_relevancy", 0.0)
+            }
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
