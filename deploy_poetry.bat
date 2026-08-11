@@ -40,6 +40,13 @@ set "RUNNER_TRACKING_ID="
 powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$process = Start-Process -FilePath '%~dp0.venv\Scripts\python.exe' -ArgumentList @('%~dp0run_gui.py', '--host', '0.0.0.0', '--port', '8000') -WorkingDirectory '%~dp0' -WindowStyle Hidden -RedirectStandardOutput '%SERVER_LOG_DIR%\server.out.log' -RedirectStandardError '%SERVER_LOG_DIR%\server.err.log' -PassThru; [IO.File]::WriteAllText('%SERVER_PID_FILE%', [string]$process.Id)"
 if errorlevel 1 exit /b 1
 
+echo [Deploy] Waiting for the server health check...
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$deadline = (Get-Date).AddSeconds(90); do { try { $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8000/' -TimeoutSec 5; if ($response.StatusCode -eq 200) { exit 0 } } catch {}; Start-Sleep -Seconds 2 } while ((Get-Date) -lt $deadline); exit 1"
+if errorlevel 1 (
+    echo [Error] Server did not become healthy on port 8000 within 90 seconds.
+    exit /b 1
+)
+
 echo [Deploy] Deployment completed!
 endlocal
 exit /b 0
