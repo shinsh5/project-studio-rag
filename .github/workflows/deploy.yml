@@ -13,5 +13,5 @@ jobs:
       - name: Trigger Deployment Script
         # 러너가 기본적으로 PowerShell을 사용하므로 cmd를 명시하여 실행합니다.
         run: |
-          cd "C:\Users\s525h\git_repo\project_poc"
+          cd "F:\RAG\project-studio-rag"
           cmd /c deploy.bat
