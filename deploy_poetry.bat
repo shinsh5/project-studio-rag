@@ -32,8 +32,8 @@ wmic process where "name='python.exe' and commandline like '%%run_gui.py%%'" cal
 timeout /t 2 /nobreak > nul
 
 echo.
-echo [Deploy] Restarting server...
-start "" run_gui.bat
+echo [Deploy] Restarting server on 0.0.0.0:8000...
+start "PROJECT Studio" /D "%~dp0" "%~dp0.venv\Scripts\python.exe" "%~dp0run_gui.py" --host 0.0.0.0 --port 8000
 
 echo [Deploy] Deployment completed!
 endlocal

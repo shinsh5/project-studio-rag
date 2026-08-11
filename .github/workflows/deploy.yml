@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Trigger Deployment Script
-        # 러너가 기본적으로 PowerShell을 사용하므로 cmd를 명시하여 실행합니다.
-        run: |
-          cd "F:\RAG\project-studio-rag"
-          cmd /c deploy.bat
+        # Windows 기본 PowerShell은 실행 정책에 따라 임시 .ps1이 차단될 수
+        # 있으므로, 이 배치 파일은 GitHub Actions의 cmd 셸로 직접 실행합니다.
+        shell: cmd
+        run: call "F:\RAG\project-studio-rag\deploy_poetry.bat"
