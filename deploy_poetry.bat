@@ -9,16 +9,10 @@ echo ============================================================
 git pull origin main
 if errorlevel 1 exit /b 1
 
-set "POETRY_CMD=poetry"
-where poetry > nul 2>&1
-if errorlevel 1 (
-    if exist "%USERPROFILE%\.local\bin\poetry.exe" (
-        set "POETRY_CMD=%USERPROFILE%\.local\bin\poetry.exe"
-    ) else (
-        echo [Error] Poetry was not found.
-        echo Install it with: python -m pipx install poetry
-        exit /b 1
-    )
+set "POETRY_CMD=F:\RAG\tools\poetry\Scripts\poetry.exe"
+if not exist "%POETRY_CMD%" (
+    echo [Error] Poetry was not found: %POETRY_CMD%
+    exit /b 1
 )
 
 echo.
