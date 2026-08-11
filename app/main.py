@@ -50,7 +50,7 @@ async def read_root(request: Request):
         name="index.html",
         context={
             "llm_backend": config.LLM_BACKEND,
-            "has_gemini_key": bool(config.GEMINI_API_KEY)
+            "ragas_backend": "codex"
         }
     )
 
@@ -179,17 +179,13 @@ class EvaluateSingleRequest(BaseModel):
 @app.post("/api/evaluate-single")
 def evaluate_single(request: EvaluateSingleRequest):
     try:
-        from evaluate_ragas import RagasGoogleREST, to_ragas_dataset
+        from evaluate_ragas import RagasCodexCLI, to_ragas_dataset
         from embeddings import get_embedding_model
         from ragas import evaluate
         from ragas.metrics import faithfulness, answer_relevancy
         from ragas.run_config import RunConfig
         
-        api_key = config.GEMINI_API_KEY
-        if not api_key:
-            raise HTTPException(status_code=400, detail="GEMINI_API_KEY is not configured.")
-            
-        eval_llm = RagasGoogleREST(model_name="gemini-3.1-flash-lite", api_key=api_key)
+        eval_llm = RagasCodexCLI()
         eval_embeddings = get_embedding_model()
         
         try:

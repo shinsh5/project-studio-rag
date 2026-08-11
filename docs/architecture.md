@@ -38,7 +38,7 @@ ROI-RAG(Redundancy- and Diversity-Oriented RAG)는 단순 텍스트 검색을 �
      └─────────┬──────────────────────────────┬──────┬─────────┘
                │                              │      │
                │ (2. Save Centroid Vectors)   │      ▼ (5. Generate)
-               │ (3. Save EU Summaries)       │  [ ☁️ Ollama / Gemini ]
+               │ (3. Save EU Summaries)       │  [ Ollama 생성 / Codex 평가 ]
                ▼                              ▼
      ┌─────────────────────────────────────────────────────────┐
      │                     Data Storage                        │
@@ -59,7 +59,7 @@ ROI-RAG(Redundancy- and Diversity-Oriented RAG)는 단순 텍스트 검색을 �
   2. FAISS 기반 Top-K Evidence Unit 검색
   3. 요약본과 원문이 결합된 하이브리드 컨텍스트(Hybrid Context) 조립
   4. 엄격한 규칙이 적용된 프롬프트 생성 후 LLM 호출
-- **`llm_client.py`**: LLM(대형 언어 모델)과의 통신을 담당합니다. 설정에 따라 로컬 `Ollama` (예: llama2:7b) 또는 외부 API `Gemini`로 요청을 분기하여 처리합니다.
+- **`llm_client.py`**: LLM(대형 언어 모델)과의 통신을 담당합니다. 일반 RAG 생성은 로컬 `Ollama`의 `llama2:7b`를 사용하며, RAGAS 평가는 `codex exec`를 사용합니다.
 
 ### 2.3 Web Backend & GUI (웹 서버 및 사용자 인터페이스)
 - **`app/main.py`**: `FastAPI`를 기반으로 구동되는 비동기 웹 서버입니다. 문서 업로드, 인덱싱, 질의응답을 처리하는 REST API 엔드포인트를 제공합니다.
@@ -72,7 +72,7 @@ ROI-RAG(Redundancy- and Diversity-Oriented RAG)는 단순 텍스트 검색을 �
 
 ## 3. Configuration (설정 관리)
 - **`config.py`**: 임베딩 청크 크기, 검색할 문서 수(K), 엔트로피 임계값(Threshold) 등 시스템 전반의 동작을 제어하는 핵심 파라미터들이 정의되어 있습니다.
-- **`.env`**: LLM 백엔드 선택(`OLLAMA_MODEL`, `GEMINI_API_KEY` 등) 및 인증 정보 등 환경 변수를 관리합니다.
+- **`.env`**: Ollama 모델과 Codex CLI 실행 설정(`OLLAMA_MODEL`, `CODEX_CLI_PATH` 등)을 관리합니다.
 
 ## 4. Evaluation (평가 - 향후 도입 예정)
 현재 파이프라인(`roi_rag.py`)은 생성된 답변(`answer`)과 참조한 문서(`retrieved_contexts`)를 명확히 분리하여 반환하므로, 향후 **RAGAS** 프레임워크를 연동하여 답변의 신뢰성(Faithfulness)과 문맥 관련성(Answer Relevance)을 정량 평가하기에 매우 용이한 구조를 갖추고 있습니다.
