@@ -17,7 +17,7 @@ if not exist "%POETRY_CMD%" (
 
 echo.
 echo [Deploy] Synchronizing Poetry dependencies...
-call "%POETRY_CMD%" install --no-root --sync
+call "%POETRY_CMD%" sync --no-root
 if errorlevel 1 exit /b 1
 
 echo.
