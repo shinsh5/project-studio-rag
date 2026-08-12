@@ -1,4 +1,3 @@
-import json
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -68,106 +67,43 @@ class TestLLMClient(unittest.TestCase):
             },
         )
 
-    def test_gemini_client_requires_api_key(self):
-        with patch.object(llm_client, "_GEMINI_CLIENT", None):
+    def test_get_ragas_llm_requires_api_key(self):
+        with patch.object(llm_client, "_RAGAS_LLM", None):
             with patch.object(config, "GEMINI_API_KEY", ""):
                 with self.assertRaisesRegex(RuntimeError, "GEMINI_API_KEY"):
-                    llm_client._gemini_client()
+                    llm_client.get_ragas_llm()
 
-    def test_schema_conversion_inlines_refs_and_drops_unsupported_keywords(self):
-        schema = {
-            "$defs": {
-                "Verdict": {
-                    "type": "object",
-                    "title": "Verdict",
-                    "additionalProperties": False,
-                    "properties": {
-                        "claim_id": {
-                            "type": "string",
-                            "pattern": "^c[1-9]\\d*$",
-                            "title": "Claim Id",
-                        },
-                        "verdict": {
-                            "type": "integer",
-                            "enum": [0, 1],
-                            "title": "Verdict",
-                        },
-                    },
-                    "required": ["claim_id", "verdict"],
-                },
-            },
-            "type": "object",
-            "title": "Output",
-            "additionalProperties": False,
-            "properties": {
-                "verdicts": {
-                    "type": "array",
-                    "items": {"$ref": "#/$defs/Verdict"},
-                },
-            },
-            "required": ["verdicts"],
-        }
+    def test_get_ragas_llm_wraps_gemini_chat_model(self):
+        mock_chat_model = MagicMock()
+        with (
+            patch.object(llm_client, "_RAGAS_LLM", None),
+            patch.object(config, "GEMINI_API_KEY", "test-key"),
+            patch.object(config, "GEMINI_MODEL", "gemini-2.5-flash-lite"),
+            patch.object(config, "GEMINI_TEMPERATURE", 0.0),
+            patch(
+                "langchain_google_genai.ChatGoogleGenerativeAI",
+                return_value=mock_chat_model,
+            ) as mock_chat_cls,
+        ):
+            wrapper = llm_client.get_ragas_llm()
 
-        prepared = llm_client._prepare_response_schema(schema)
-
-        self.assertNotIn("$defs", prepared)
-        self.assertNotIn("title", prepared)
-        self.assertNotIn("additionalProperties", prepared)
-        verdict_item = prepared["properties"]["verdicts"]["items"]
-        self.assertNotIn("$ref", verdict_item)
-        self.assertNotIn("pattern", verdict_item["properties"]["claim_id"])
-        self.assertEqual(verdict_item["required"], ["claim_id", "verdict"])
-        self.assertNotIn("enum", verdict_item["properties"]["verdict"])
-        self.assertEqual(verdict_item["properties"]["verdict"]["type"], "integer")
-
-    @patch.object(llm_client, "_GEMINI_CLIENT", MagicMock())
-    def test_gemini_structured_output_parses_json_response(self):
-        llm_client._GEMINI_CLIENT.models.generate_content.return_value = MagicMock(
-            text='{"verdicts": [{"claim_id": "c1", "verdict": 1}]}'
+        mock_chat_cls.assert_called_once_with(
+            model="gemini-2.5-flash-lite",
+            google_api_key="test-key",
+            temperature=0.0,
         )
+        self.assertIs(wrapper.langchain_llm, mock_chat_model)
 
-        with patch.object(config, "GEMINI_MODEL", "gemini-2.5-flash-lite"):
-            result = llm_client.gemini_generate_structured(
-                "judge",
-                {
-                    "type": "object",
-                    "properties": {"verdicts": {"type": "array"}},
-                    "required": ["verdicts"],
-                    "additionalProperties": False,
-                },
-            )
+    def test_get_ragas_llm_is_cached(self):
+        with (
+            patch.object(llm_client, "_RAGAS_LLM", None),
+            patch.object(config, "GEMINI_API_KEY", "test-key"),
+            patch("langchain_google_genai.ChatGoogleGenerativeAI"),
+        ):
+            first = llm_client.get_ragas_llm()
+            second = llm_client.get_ragas_llm()
 
-        self.assertEqual(result["verdicts"][0]["claim_id"], "c1")
-        call_kwargs = llm_client._GEMINI_CLIENT.models.generate_content.call_args.kwargs
-        self.assertEqual(call_kwargs["model"], "gemini-2.5-flash-lite")
-        self.assertIn("judge", call_kwargs["contents"])
-        self.assertEqual(
-            call_kwargs["config"].response_mime_type, "application/json"
-        )
-
-    @patch.object(llm_client, "_GEMINI_CLIENT", MagicMock())
-    def test_gemini_structured_output_rejects_empty_response(self):
-        llm_client._GEMINI_CLIENT.models.generate_content.return_value = MagicMock(
-            text=""
-        )
-
-        with self.assertRaisesRegex(RuntimeError, "empty structured response"):
-            llm_client.gemini_generate_structured(
-                "judge",
-                {"type": "object", "properties": {}},
-            )
-
-    @patch.object(llm_client, "_GEMINI_CLIENT", MagicMock())
-    def test_gemini_structured_output_rejects_invalid_json(self):
-        llm_client._GEMINI_CLIENT.models.generate_content.return_value = MagicMock(
-            text="not json"
-        )
-
-        with self.assertRaisesRegex(RuntimeError, "invalid JSON"):
-            llm_client.gemini_generate_structured(
-                "judge",
-                {"type": "object", "properties": {}},
-            )
+        self.assertIs(first, second)
 
 
 if __name__ == "__main__":

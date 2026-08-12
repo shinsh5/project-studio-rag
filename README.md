@@ -4,7 +4,7 @@
 
 - 일반 RAG 답변과 인덱스 요약: 로컬 Ollama `llama2:7b`
 - 임베딩과 검색: SentenceTransformers + FAISS
-- RAGAS faithfulness 평가: Gemini API (평가할 때마다 새로 호출, 캐시 없음)
+- RAGAS faithfulness 평가: RAGAS 표준 `Faithfulness` 메트릭 + Gemini API (평가할 때마다 새로 호출, 캐시 없음)
 - 웹 서비스: FastAPI + 내장 웹 UI
 
 ## 실행 구조
@@ -220,13 +220,12 @@ poetry run python run_inference.py --interactive
 poetry run python evaluate_ragas.py
 ```
 
-Faithfulness claim boundaries are deterministic: the application freshly splits the same
-answer into the same atomic, sentence/clause-based claim IDs on every run. No claim or
-evaluation-result cache is used. Gemini judges only those fixed IDs and cannot add, remove,
-or rewrite claims. Evidence may be combined across contexts when it clearly describes the
-same entity and event. Verdicts are freshly generated on every evaluation with
-`temperature=0` for consistency, though an individual Gemini verdict can still be
-nondeterministic.
+Faithfulness는 RAGAS의 표준 `Faithfulness` 메트릭을 그대로 사용합니다: 먼저 Gemini가
+답변을 atomic statement로 분해하고(`StatementGeneratorPrompt`), 이어서 각 statement를
+context와 대조해 0/1 verdict를 판정합니다(`NLIStatementPrompt`). 두 단계 모두 LLM이
+수행하므로 `temperature=0`으로 변동을 줄이지만, statement 분해 경계 자체가 매 실행마다
+완전히 동일하다고 보장되지는 않습니다. 평가 결과 캐시는 사용하지 않으므로 평가할 때마다
+새로 계산합니다.
 
 프로젝트 루트에 `eval_dataset.json`이 있으면 해당 데이터셋을 사용하고, 없으면 내장 예제 한 건을 평가합니다.
 

@@ -214,7 +214,7 @@ def _evaluation_response(eval_result):
             "total_claims": eval_result.total_claims,
             "claims": [claim.model_dump() for claim in eval_result.claims],
             "contexts_evaluated": eval_result.contexts_evaluated,
-            "judge_model": f"gemini ({config.GEMINI_MODEL})",
+            "judge_model": f"ragas.Faithfulness + gemini ({config.GEMINI_MODEL})",
         },
     }
 
