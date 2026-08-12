@@ -47,7 +47,7 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
-def run_gui_mode(host: str = "127.0.0.1", port: int = 8000):
+def run_gui_mode(host: str = "127.0.0.1", port: int = 8000, reload: bool = False):
     try:
         import uvicorn
     except ImportError:
@@ -80,7 +80,7 @@ def run_gui_mode(host: str = "127.0.0.1", port: int = 8000):
         sys.path.insert(0, project_root)
 
     try:
-        uvicorn.run("app.main:app", host=host, port=port, reload=True)
+        uvicorn.run("app.main:app", host=host, port=port, reload=reload)
     except KeyboardInterrupt:
         print("\n[GUI Mode] Server stopped by user.")
     except Exception as e:
@@ -94,6 +94,7 @@ def main():
     group.add_argument("--gui", "-g", action="store_true", help="Start PROJECT Studio Web GUI and open in browser.")
     parser.add_argument("--port", "-p", type=int, default=8000, help="Port for GUI web server (default: 8000).")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Host address for GUI web server (default: 127.0.0.1).")
+    parser.add_argument("--reload", action="store_true", help="Reload the GUI server when source files change (development only).")
     
     args = parser.parse_args()
     
@@ -102,7 +103,7 @@ def main():
         if not args.gui:
             print("[Notice] No execution mode specified. Defaulting to GUI mode (--gui).")
             print("         (Use --help to check CLI --query or --interactive options)")
-        run_gui_mode(host=args.host, port=args.port)
+        run_gui_mode(host=args.host, port=args.port, reload=args.reload)
         return
 
     print("[Inference] Initializing ROI-RAG Pipeline...")
