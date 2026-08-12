@@ -705,6 +705,12 @@
                     <button class="sample-badge" onclick="setAndRunQuery('Why did the Siskiyou County Board of Supervisors vote to secede and form the State of Jefferson?')">🌲 State of Jefferson Secession</button>
                     <button class="sample-badge" onclick="setAndRunQuery('Why did Microsoft acquire Nokia cell phone business?')">📱 Microsoft & Nokia Deal</button>
                 </div>
+                <div class="sample-queries" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
+                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--accent-color);" title="답이 인접한 두 세그먼트에 걸쳐 있으나 ROI-RAG가 이를 서로 다른 EU로 분리한 문항. Top-K EU 검색에서 한쪽이 누락되므로 Small-to-Big의 parent 확장 효과를 검증하는 용도.">🔬 Cross-EU Hard Samples:</span>
+                    <button class="sample-badge" onclick="setAndRunQuery('What were the ages of Justices Breyer, Scalia, Kennedy and Ginsburg, and which major cases faced the Supreme Court that term?')">⚖️ Supreme Court Ages & Docket</button>
+                    <button class="sample-badge" onclick="setAndRunQuery('In the HGTV lawsuit, whom did the couple sue and what did their attorney say the company\&#39;s incentive was?')">🏠 HGTV Renovation Lawsuit</button>
+                    <button class="sample-badge" onclick="setAndRunQuery('What triggered the new gold rush in Jamestown and which past flood year do miners compare it to?')">⛏️ Jamestown Gold Rush</button>
+                </div>
 
                 <!-- Live RAG Execution Stepper Bar -->
                 <div class="pipeline-stepper" id="livePipelineStepper" style="display: none;">
