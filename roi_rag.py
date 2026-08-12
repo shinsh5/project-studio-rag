@@ -9,6 +9,7 @@ import os
 import threading
 import time
 from collections import OrderedDict, Counter
+import numpy as np
 import config
 import llm_client
 from indexer import load_roi_rag_index
@@ -72,6 +73,36 @@ def clear_response_cache() -> None:
     """Clear Llama answers only; RAGAS evaluations are never cached."""
     with _response_cache_lock:
         _response_cache.clear()
+
+def _rank_segments_by_query(
+    segment_indices: list[int],
+    segment_embeddings: np.ndarray,
+    query_emb: np.ndarray,
+) -> list[int]:
+    """
+    Reorders one EU's segment indices by cosine similarity to the query, so that
+    prompt truncation keeps the segments most relevant to the question instead of
+    whichever ones the greedy EU construction happened to add first.
+    Falls back to the stored order when embeddings are unavailable.
+    """
+    if len(segment_embeddings) == 0:
+        return segment_indices
+
+    valid = [idx for idx in segment_indices if idx < len(segment_embeddings)]
+    if not valid:
+        return segment_indices
+
+    mat = segment_embeddings[valid].astype(np.float32)
+    norms = np.linalg.norm(mat, axis=1, keepdims=True)
+    norms[norms == 0] = 1e-12
+    mat = mat / norms
+
+    q_norm = np.linalg.norm(query_emb)
+    q_vec = (query_emb / q_norm if q_norm > 0 else query_emb).astype(np.float32)
+
+    similarities = mat @ q_vec
+    return [valid[i] for i in np.argsort(-similarities)]
+
 
 def get_roi_rag_pipeline():
     """
@@ -144,6 +175,9 @@ def get_roi_rag_pipeline():
 
         segments = index_data["segments"]
         evidence_units = index_data["evidence_units"]
+        segment_embeddings = index_data.get(
+            "segment_embeddings", np.empty((0, 384), dtype=np.float32)
+        )
 
         retrieved_eus = []
         context_parts = []
@@ -193,9 +227,13 @@ def get_roi_rag_pipeline():
                         f"Top Original Snippets:\n{raw_text}"
                     )
             else:
-                supporting_segs = [segments[s_idx] for s_idx in eu["segment_indices"] if s_idx < len(segments)]
-                # Hybrid Context Strategy: Provide the condensed summary AND top-3 representative raw snippets
-                representative_segments = "\n".join([f"- {seg}" for seg in supporting_segs[:3]]) if supporting_segs else ""
+                # Hybrid Context Strategy: Provide the condensed summary AND top-3 representative raw snippets,
+                # picking the snippets most similar to the query rather than the first three stored.
+                ranked_indices = _rank_segments_by_query(
+                    eu["segment_indices"], segment_embeddings, query_emb
+                )
+                supporting_segs = [segments[s_idx] for s_idx in ranked_indices[:3] if s_idx < len(segments)]
+                representative_segments = "\n".join([f"- {seg}" for seg in supporting_segs]) if supporting_segs else ""
                 eu_text = (
                     f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
                     f"RE: {eu['re']}, DE: {eu['de']})\n"

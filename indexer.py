@@ -472,6 +472,11 @@ def load_roi_rag_index_for(strategy: str) -> tuple[dict, FAISSIndexManager]:
     index_manager.load(config.get_faiss_index_path(strategy))
     index_manager.eu_embeddings = eu_embeddings
 
+    # 온라인 추론에서 EU 내부 세그먼트를 질의 유사도로 재정렬하는 데 사용.
+    index_data["segment_embeddings"] = _load_embeddings(
+        config.get_segment_embeddings_path(strategy), "segment_embeddings", index_data
+    )
+
     return index_data, index_manager
 
 
