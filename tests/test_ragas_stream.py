@@ -5,7 +5,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.main import QueryRequest, app
-from evaluate_ragas import FaithfulnessEvaluation, StrictStatementVerdict
+from evaluate_ragas import FaithfulnessEvaluation, StatementVerdict
 
 
 class TestQueryResponseCacheOption(unittest.TestCase):
@@ -44,8 +44,9 @@ class TestRagasProgressStream(unittest.TestCase):
         ):
             for stage, progress in (
                 ("validating_input", 5),
-                ("running_gemini", 35),
-                ("validating_output", 85),
+                ("generating_statements", 25),
+                ("judging_statements", 60),
+                ("calculating_score", 95),
                 ("completed", 100),
             ):
                 await progress_callback(
@@ -60,12 +61,10 @@ class TestRagasProgressStream(unittest.TestCase):
                 supported_claims=1,
                 total_claims=1,
                 claims=[
-                    StrictStatementVerdict(
+                    StatementVerdict(
                         claim_id="c1",
-                        source_text="Alpha happened.",
                         statement="Alpha happened.",
                         reason="Supported by context 1.",
-                        evidence="context_id 1: Alpha happened.",
                         verdict=1,
                     )
                 ],
@@ -97,7 +96,7 @@ class TestRagasProgressStream(unittest.TestCase):
 
         self.assertEqual(
             [event["type"] for event in events],
-            ["progress", "progress", "progress", "progress", "result"],
+            ["progress", "progress", "progress", "progress", "progress", "result"],
         )
         self.assertEqual(events[0]["stage"], "validating_input")
         self.assertEqual(events[-1]["scores"]["faithfulness"], 1.0)

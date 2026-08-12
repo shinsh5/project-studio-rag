@@ -75,4 +75,4 @@ ROI-RAG(Redundancy- and Diversity-Oriented RAG)는 단순 텍스트 검색을 �
 - **`.env`**: Ollama 모델과 Gemini API 실행 설정(`OLLAMA_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` 등)을 관리합니다.
 
 ## 4. Evaluation (평가 - 향후 도입 예정)
-현재 파이프라인(`roi_rag.py`)은 생성된 답변(`answer`)과 참조한 문서(`retrieved_contexts`)를 분리하여 반환합니다. Faithfulness 평가는 이 값을 한 번의 Gemini API 호출에 전달하며, 평가 결과 캐시는 사용하지 않습니다.
+현재 파이프라인(`roi_rag.py`)은 생성된 답변(`answer`)과 참조한 문서(`retrieved_contexts`)를 분리하여 반환합니다. Faithfulness 평가는 RAGAS의 표준 `Faithfulness` 메트릭을 그대로 사용하며(`evaluate_ragas.py`), Gemini가 답변을 atomic statement로 분해한 뒤 각 statement를 context와 대조해 판정하는 2단계 LLM 호출로 이루어집니다. 평가 결과 캐시는 사용하지 않습니다.
