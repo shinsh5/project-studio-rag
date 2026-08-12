@@ -652,6 +652,7 @@
                 <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
                     Strategy: <span class="strategy-badge" id="statStrategy">—</span>
                 </div>
+                <pre id="indexReadme" style="display: none; margin-top: 0.75rem; padding: 0.75rem; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 6px; max-height: 220px; overflow-y: auto;"></pre>
             </div>
         </div>
 
@@ -782,11 +783,21 @@
 
         let currentStrategy = 'roi_rag';
 
+        function buildButtonLabel(strategy) {
+            return strategy === 'small_to_big' ? '🚀 Build Small-to-Big Index' : '🚀 Build ROI-RAG Index';
+        }
+
         function setStrategy(strategy) {
             currentStrategy = strategy;
             document.getElementById('btnRoiRag').className = 'strategy-btn' + (strategy === 'roi_rag' ? ' active' : '');
             document.getElementById('btnStb').className = 'strategy-btn' + (strategy === 'small_to_big' ? ' active' : '');
             document.getElementById('stbOptions').className = 'stb-options' + (strategy === 'small_to_big' ? '' : ' hidden');
+            const buildBtn = document.getElementById('buildBtn');
+            if (buildBtn && !buildBtn.disabled) {
+                buildBtn.innerHTML = buildButtonLabel(strategy);
+            }
+            // 이미 인덱싱된 전략이면 재인덱싱 없이 해당 인덱스 상태를 바로 보여준다.
+            fetchCurrentIndex(strategy);
         }
 
         function getStbParams() {
@@ -800,16 +811,30 @@
         }
 
         // Load current index status on page start
-        window.addEventListener('DOMContentLoaded', fetchCurrentIndex);
+        window.addEventListener('DOMContentLoaded', () => fetchCurrentIndex(currentStrategy));
 
-        async function fetchCurrentIndex() {
+        async function fetchCurrentIndex(strategy) {
             try {
-                const res = await fetch('/api/current-index', { headers: TUNNEL_HEADERS });
+                const url = strategy
+                    ? `/api/current-index?strategy=${encodeURIComponent(strategy)}`
+                    : '/api/current-index';
+                const res = await fetch(url, { headers: TUNNEL_HEADERS });
                 const data = await parseJsonResponse(res);
                 document.getElementById('statSegments').innerText = data.segments_count || 0;
                 document.getElementById('statEUs').innerText = data.eus_count || 0;
-                const strategy = data.chunking_strategy || 'roi_rag';
-                document.getElementById('statStrategy').innerText = strategy === 'small_to_big' ? 'Small-to-Big' : 'ROI-RAG';
+                const resolvedStrategy = data.chunking_strategy || strategy || 'roi_rag';
+                document.getElementById('statStrategy').innerText = resolvedStrategy === 'small_to_big' ? 'Small-to-Big' : 'ROI-RAG';
+
+                const readmeEl = document.getElementById('indexReadme');
+                if (readmeEl) {
+                    if (data.readme) {
+                        readmeEl.textContent = data.readme;
+                        readmeEl.style.display = 'block';
+                    } else {
+                        readmeEl.textContent = '';
+                        readmeEl.style.display = 'none';
+                    }
+                }
             } catch (e) {
                 console.error("Failed to fetch current index:", e);
             }
@@ -909,6 +934,7 @@
                     document.getElementById('statEUs').innerText = data.eus_count;
                     document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
                     completeIndexingStepper(data);
+                    fetchCurrentIndex(data.chunking_strategy);
                     alert(`Successfully indexed file '${file.name}' with ${data.eus_count} Evidence Units!`);
                 } else {
                     errorIndexingStepper(data.detail || "Upload failed");
@@ -919,7 +945,7 @@
                 alert("Upload failed: " + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = "🚀 Build ROI-RAG Index";
+                btn.innerHTML = buildButtonLabel(currentStrategy);
                 input.value = "";
             }
         }
@@ -949,6 +975,7 @@
                     document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
                     document.getElementById('textInput').value = "";
                     completeIndexingStepper(data);
+                    fetchCurrentIndex(data.chunking_strategy);
                     alert(`Index built successfully! Created ${data.eus_count} Evidence Units.`);
                 } else {
                     errorIndexingStepper(data.detail || "Indexing failed");
@@ -959,7 +986,7 @@
                 alert("Build failed: " + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = "🚀 Build ROI-RAG Index";
+                btn.innerHTML = buildButtonLabel(currentStrategy);
             }
         }
 
@@ -1036,7 +1063,7 @@
                 const res = await fetch('/api/query', {
                     method: 'POST',
                     headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, use_cache: useCache })
+                    body: JSON.stringify({ query, use_cache: useCache, chunking_strategy: currentStrategy })
                 });
                 const data = await parseJsonResponse(res);
 

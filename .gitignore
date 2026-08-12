@@ -17,3 +17,7 @@ env/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Per-chunking-strategy generated indexes (rebuildable via GUI/CLI)
+data/roi_rag/
+data/small_to_big/

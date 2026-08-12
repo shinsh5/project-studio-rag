@@ -14,7 +14,7 @@
 | 문서 임베딩 | SentenceTransformers | `all-MiniLM-L6-v2` |
 | RAG 답변 및 EU 요약 | Ollama | `llama2:7b` |
 | RAGAS faithfulness 평가 | Gemini API | `gemini-2.5-flash-lite` |
-| 벡터 검색 | FAISS | `data/faiss_index.bin` |
+| 벡터 검색 | FAISS | `data/<chunking_strategy>/faiss_index.bin` |
 | 웹 서버 | FastAPI/Uvicorn | `0.0.0.0:8000` 권장 |
 
 ## 요구 사항
@@ -172,6 +172,17 @@ LAN 또는 Tailscale 접속이 Windows 방화벽에 막히면 `1단계_방화벽
 
 저장소의 `data/` 폴더에는 기본 인덱스가 포함되어 있습니다. 자신의 문서를 사용하려면 웹 UI 또는 CLI로 새 인덱스를 생성하세요.
 
+#### Chunking Strategy별 인덱스 디렉토리
+
+인덱스는 `CHUNKING_STRATEGY`(`roi_rag` | `small_to_big`)별로 `data/<전략명>/`
+아래에 독립적으로 저장됩니다 (예: `data/roi_rag/`, `data/small_to_big/`).
+전략을 전환해도 다른 전략의 인덱스는 그대로 남아 있으므로, 두 전략을 모두
+한 번씩 인덱싱해두면 이후에는 웹 UI에서 전략 버튼만 눌러 재인덱싱 없이
+바로 전환할 수 있습니다 (데모에서 유용합니다).
+
+각 전략 디렉토리에는 인덱싱에 사용된 원본 데이터 정보와 파라미터를 기록한
+`README.md`가 함께 생성됩니다.
+
 ### CLI 인덱싱
 
 ```powershell
@@ -184,7 +195,8 @@ poetry run python build_index.py --file ".\documents\sample.txt"
 poetry run python build_index.py --text "인덱싱할 문서 내용"
 ```
 
-인덱스를 다시 만들면 `data/`의 기존 인덱스 파일이 갱신됩니다.
+인덱스를 다시 만들면 현재 `CHUNKING_STRATEGY`에 해당하는 `data/<전략명>/`의
+기존 인덱스 파일만 갱신됩니다. 다른 전략의 인덱스는 영향받지 않습니다.
 
 ### CLI 질의응답
 
@@ -296,7 +308,7 @@ poetry run python run_gui.py --host 0.0.0.0 --port 8001
 ```text
 project-studio-rag/
 ├── app/                     # FastAPI API 및 웹 UI
-├── data/                    # FAISS 인덱스와 ROI-RAG 메타데이터
+├── data/<strategy>/         # 전략별 FAISS 인덱스, 메타데이터, README
 ├── docs/architecture.md     # 아키텍처 설명
 ├── tests/                   # 단위 테스트
 ├── config.py                # 환경변수와 ROI-RAG 설정

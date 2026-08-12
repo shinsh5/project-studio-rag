@@ -6,7 +6,7 @@ import os
 import json
 import math
 import time
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -18,7 +18,7 @@ if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 import config
-from indexer import build_roi_rag_index, load_roi_rag_index
+from indexer import build_roi_rag_index, load_roi_rag_index, load_roi_rag_index_for
 from roi_rag import clear_response_cache, get_roi_rag_pipeline
 from evaluate_ragas import RagasStructuredOutputError, score_faithfulness
 
@@ -38,6 +38,7 @@ roi_pipeline = get_roi_rag_pipeline()
 class QueryRequest(BaseModel):
     query: str
     use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT
+    chunking_strategy: str | None = None
 
 class BuildIndexRequest(BaseModel):
     text: str
@@ -60,26 +61,36 @@ async def read_root(request: Request):
         }
     )
 
+def _read_index_readme(strategy: str) -> str:
+    readme_path = config.get_index_readme_path(strategy)
+    if not os.path.exists(readme_path):
+        return ""
+    with open(readme_path, "r", encoding="utf-8") as f:
+        return f.read()
+
 @app.get("/api/current-index")
-def get_current_index():
+def get_current_index(strategy: str | None = None):
+    requested_strategy = strategy or config.CHUNKING_STRATEGY
     try:
-        index_data, _ = load_roi_rag_index()
+        index_data, _ = load_roi_rag_index_for(requested_strategy)
         return {
             "status": "success",
             "segments_count": len(index_data.get("segments", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
-            "chunking_strategy": index_data.get("chunking_strategy", "roi_rag"),
+            "chunking_strategy": index_data.get("chunking_strategy", requested_strategy),
             "evidence_units": index_data.get("evidence_units", []),
-            "segments": index_data.get("segments", [])
+            "segments": index_data.get("segments", []),
+            "readme": _read_index_readme(requested_strategy),
         }
     except FileNotFoundError:
         return {
             "status": "empty",
             "segments_count": 0,
             "eus_count": 0,
-            "chunking_strategy": "roi_rag",
+            "chunking_strategy": requested_strategy,
             "evidence_units": [],
-            "segments": []
+            "segments": [],
+            "readme": "",
         }
 
 def _apply_chunking_config(request: BuildIndexRequest):
@@ -116,11 +127,11 @@ def build_index(request: BuildIndexRequest):
 @app.post("/api/upload-file")
 def upload_file(
     file: UploadFile = File(...),
-    chunking_strategy: str = "roi_rag",
-    stb_leaf_size: int = 80,
-    stb_leaf_overlap: int = 20,
-    stb_leaves_per_parent: int = 3,
-    automerge_threshold: float = 0.0,
+    chunking_strategy: str = Form("roi_rag"),
+    stb_leaf_size: int = Form(80),
+    stb_leaf_overlap: int = Form(20),
+    stb_leaves_per_parent: int = Form(3),
+    automerge_threshold: float = Form(0.0),
 ):
     try:
         content = file.file.read()
@@ -135,7 +146,7 @@ def upload_file(
             automerge_threshold=automerge_threshold,
         )
         _apply_chunking_config(req)
-        index_data = build_roi_rag_index(text)
+        index_data = build_roi_rag_index(text, source_label=file.filename or "")
         clear_response_cache()
         global roi_pipeline
         roi_pipeline = get_roi_rag_pipeline()
@@ -159,7 +170,10 @@ def upload_file(
 def execute_query(request: QueryRequest):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
-        
+
+    if request.chunking_strategy:
+        config.CHUNKING_STRATEGY = request.chunking_strategy
+
     try:
         res = roi_pipeline(request.query, use_cache=request.use_cache)
         return {

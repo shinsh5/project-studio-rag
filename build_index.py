@@ -31,7 +31,7 @@ def main():
         return
         
     print("[Build Index] Executing ROI-RAG Indexer...")
-    result = build_roi_rag_index(text)
+    result = build_roi_rag_index(text, source_label=args.file or "")
     
     segments_cnt = len(result.get("segments", []))
     eus_cnt = len(result.get("evidence_units", []))
