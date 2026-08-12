@@ -63,6 +63,107 @@ class TestDeterministicClaimExtraction(unittest.TestCase):
             ["Alpha happened.", "Beta happened."],
         )
 
+    def test_splits_compound_microsoft_answer_into_atomic_claims(self):
+        answer = (
+            "Microsoft acquired Nokia's cell phone business and licensed its "
+            "patent portfolio to build a devices and services strategy, evolving "
+            "away from its traditional focus on Windows and Office."
+        )
+
+        claims = evaluate_ragas._extract_deterministic_claims(answer)
+
+        self.assertEqual(
+            [claim.claim_id for claim in claims],
+            ["c1", "c2", "c3", "c4"],
+        )
+        self.assertEqual(
+            [claim.statement for claim in claims],
+            [
+                "Microsoft acquired Nokia's cell phone business.",
+                "Microsoft licensed its patent portfolio.",
+                "Microsoft intended to build a devices and services strategy.",
+                "Microsoft is evolving away from its traditional focus on "
+                "Windows and Office.",
+            ],
+        )
+        self.assertTrue(all(claim.source_text == answer for claim in claims))
+
+    def test_does_not_split_object_conjunction(self):
+        answers = [
+            "Microsoft retained Windows and Office.",
+            "Microsoft acquired a software and services business.",
+        ]
+
+        statements = [
+            [
+                claim.statement
+                for claim in evaluate_ragas._extract_deterministic_claims(answer)
+            ]
+            for answer in answers
+        ]
+
+        self.assertEqual(
+            statements,
+            [
+                ["Microsoft retained Windows and Office."],
+                ["Microsoft acquired a software and services business."],
+            ],
+        )
+
+    def test_varied_sentences_produce_their_natural_claim_counts(self):
+        cases = [
+            (
+                "The painting was shipped under false pretenses and "
+                "discovered in Newark.",
+                [
+                    "The painting was shipped under false pretenses.",
+                    "The painting was discovered in Newark.",
+                ],
+            ),
+            (
+                "Federal prosecutors filed papers in Brooklyn, and officials "
+                "identified the shipper as Robert.",
+                [
+                    "Federal prosecutors filed papers in Brooklyn.",
+                    "officials identified the shipper as Robert.",
+                ],
+            ),
+            (
+                "Officer Rogelio Santander died after being shot at a Home "
+                "Depot store.",
+                [
+                    "Officer Rogelio Santander died.",
+                    "Officer Rogelio Santander was shot at a Home Depot store.",
+                ],
+            ),
+            (
+                "The responses cost $500,000.",
+                ["The responses cost $500,000."],
+            ),
+        ]
+
+        for answer, expected in cases:
+            with self.subTest(answer=answer):
+                first = evaluate_ragas._extract_deterministic_claims(answer)
+                second = evaluate_ragas._extract_deterministic_claims(answer)
+                self.assertEqual(
+                    [claim.statement for claim in first],
+                    expected,
+                )
+                self.assertEqual(
+                    [claim.model_dump() for claim in first],
+                    [claim.model_dump() for claim in second],
+                )
+
+    def test_present_tense_independent_clauses_are_split(self):
+        claims = evaluate_ragas._extract_deterministic_claims(
+            "The report identifies the shipper, and the filing describes "
+            "the destination."
+        )
+
+        self.assertEqual(len(claims), 2)
+
+
 
 class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
     async def test_scores_fixed_claims_from_one_codex_call(self):
@@ -262,6 +363,20 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("Exact wording is not required", prompt)
         self.assertIn('"distress calls" and "distress alerts"', prompt)
+
+    def test_prompt_combines_support_across_contexts(self):
+        claims = evaluate_ragas._extract_deterministic_claims(
+            "Microsoft acquired Nokia and changed its strategy."
+        )
+        prompt = evaluate_ragas._build_faithfulness_prompt(
+            "Why?",
+            claims,
+            ["Microsoft acquired Nokia.", "Microsoft changed its strategy."],
+        )
+
+        self.assertIn("one combined evidence set", prompt)
+        self.assertIn("no single context must entail the complete claim", prompt)
+        self.assertIn("same entity", prompt)
 
     def test_verdict_rejects_values_other_than_zero_or_one(self):
         with self.assertRaises(ValidationError):

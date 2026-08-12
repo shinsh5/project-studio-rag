@@ -75,6 +75,142 @@ _ABBREVIATION_RE = re.compile(
     re.IGNORECASE,
 )
 _INITIALISM_RE = re.compile(r"\b(?:[A-Za-z]\.){2,}")
+_COMMON_FINITE_VERBS = (
+    "acquire",
+    "aim",
+    "announce",
+    "arrest",
+    "become",
+    "begin",
+    "build",
+    "call",
+    "cause",
+    "charge",
+    "confirm",
+    "contain",
+    "cost",
+    "create",
+    "describe",
+    "develop",
+    "die",
+    "discover",
+    "estimate",
+    "evolve",
+    "expect",
+    "file",
+    "find",
+    "happen",
+    "identify",
+    "include",
+    "indicate",
+    "lead",
+    "license",
+    "make",
+    "move",
+    "plan",
+    "provide",
+    "receive",
+    "recover",
+    "remain",
+    "report",
+    "retain",
+    "say",
+    "ship",
+    "shoot",
+    "state",
+    "support",
+    "use",
+    "want",
+)
+def _third_person_singular(verb: str) -> str:
+    """Return the regular English third-person form for a verb lexeme."""
+    if verb.endswith("y") and verb[-2:-1] not in "aeiou":
+        return f"{verb[:-1]}ies"
+    if verb.endswith(("s", "x", "z", "ch", "sh", "o")):
+        return f"{verb}es"
+    return f"{verb}s"
+
+
+_COMMON_FINITE_PATTERN = "|".join(
+    rf"{verb}|{_third_person_singular(verb)}"
+    for verb in _COMMON_FINITE_VERBS
+)
+_PREDICATE_VERB = (
+    rf"(?:[A-Za-z]+ed|is|are|was|were|has|have|had|"
+    rf"made|said|did|took|found|built|bought|sold|shot|died|became|began|ran|went|"
+    rf"{_COMMON_FINITE_PATTERN})"
+)
+_COORDINATED_PREDICATE_RE = re.compile(
+    rf"^(?P<subject>.+?)\s+(?P<verb1>{_PREDICATE_VERB})\s+"
+    rf"(?P<object1>.+?)\s+and\s+(?P<verb2>{_PREDICATE_VERB})\s+"
+    rf"(?P<object2>.+)$",
+    re.IGNORECASE,
+)
+_PURPOSE_VERBS = (
+    "address",
+    "avoid",
+    "become",
+    "build",
+    "create",
+    "develop",
+    "enable",
+    "ensure",
+    "establish",
+    "expand",
+    "form",
+    "help",
+    "improve",
+    "increase",
+    "make",
+    "move",
+    "promote",
+    "protect",
+    "provide",
+    "pursue",
+    "raise",
+    "reduce",
+    "retain",
+    "strengthen",
+    "support",
+)
+_PURPOSE_RE = re.compile(
+    rf"\s+to\s+(?P<purpose>(?:{'|'.join(_PURPOSE_VERBS)})\b.+)$",
+    re.IGNORECASE,
+)
+_TRAILING_PARTICIPLE_VERBS = (
+    "building",
+    "creating",
+    "developing",
+    "enabling",
+    "evolving",
+    "expanding",
+    "helping",
+    "improving",
+    "increasing",
+    "moving",
+    "providing",
+    "reducing",
+    "retaining",
+    "shifting",
+    "strengthening",
+    "supporting",
+    "transitioning",
+    "using",
+)
+_TRAILING_PARTICIPLE_RE = re.compile(
+    rf",\s*(?P<participle>(?:{'|'.join(_TRAILING_PARTICIPLE_VERBS)})\b.+)$",
+    re.IGNORECASE,
+)
+_INDEPENDENT_CONJUNCTION_RE = re.compile(
+    r",\s+(?:and|but|while)\s+",
+    re.IGNORECASE,
+)
+_PASSIVE_ADVERBIAL_RE = re.compile(
+    r"\s+(?P<link>after|before|by|while)\s+being\s+"
+    r"(?P<participle>[A-Za-z]+ed|built|bought|found|made|shot|sold)\b"
+    r"(?P<details>.*)$",
+    re.IGNORECASE,
+)
 
 
 def _protect_periods(text: str) -> str:
@@ -90,8 +226,113 @@ def _protect_periods(text: str) -> str:
     )
 
 
+def _finish_claim(text: str, terminal: str) -> str:
+    """Normalize a reconstructed atomic claim and preserve terminal punctuation."""
+    normalized = " ".join(text.split()).strip(" ,")
+    if terminal and normalized and normalized[-1] not in ".!?":
+        normalized += terminal
+    return normalized
+
+
+def _leading_subject(statement: str) -> str | None:
+    """Return a conservative leading subject for predicate reconstruction."""
+    match = re.match(
+        rf"^(?P<subject>.+?)\s+{_PREDICATE_VERB}\b",
+        statement,
+        re.IGNORECASE,
+    )
+    return match.group("subject").strip() if match else None
+
+
+def _split_atomic_statement(statement: str) -> list[str]:
+    """Deterministically split common English compound predicates into facts."""
+    terminal = statement[-1] if statement[-1:] in ".!?" else ""
+    core = statement[:-1].strip() if terminal else statement.strip()
+
+    independent_parts = _INDEPENDENT_CONJUNCTION_RE.split(core)
+    if len(independent_parts) > 1 and all(
+        _leading_subject(part) for part in independent_parts
+    ):
+        return [
+            atomic
+            for part in independent_parts
+            for atomic in _split_atomic_statement(
+                _finish_claim(part, terminal)
+            )
+        ]
+
+    derived: list[str] = []
+    passive_match = _PASSIVE_ADVERBIAL_RE.search(core)
+    if passive_match:
+        main_clause = core[:passive_match.start()].strip()
+        subject = _leading_subject(main_clause)
+        if subject:
+            participle = passive_match.group("participle")
+            details = passive_match.group("details").strip()
+            auxiliary = (
+                "were"
+                if subject.lower() in {"they", "we", "you"}
+                else "was"
+            )
+            derived.append(
+                _finish_claim(
+                    f"{subject} {auxiliary} {participle} {details}",
+                    terminal,
+                )
+            )
+            core = main_clause
+
+    participle_match = _TRAILING_PARTICIPLE_RE.search(core)
+    if participle_match:
+        participle = participle_match.group("participle")
+        core = core[:participle_match.start()].strip()
+        subject = _leading_subject(core)
+        if subject:
+            derived.append(_finish_claim(f"{subject} is {participle}", terminal))
+
+    purpose_match = _PURPOSE_RE.search(core)
+    if purpose_match:
+        purpose = purpose_match.group("purpose")
+        core = core[:purpose_match.start()].strip()
+        subject = _leading_subject(core)
+        if subject:
+            derived.insert(
+                0,
+                _finish_claim(f"{subject} intended to {purpose}", terminal),
+            )
+
+    coordinated = _COORDINATED_PREDICATE_RE.match(core)
+    if coordinated:
+        subject = coordinated.group("subject").strip()
+        verb1 = coordinated.group("verb1")
+        verb2 = coordinated.group("verb2")
+        if (
+            verb1.lower() in {"is", "are", "was", "were", "has", "have", "had"}
+            and re.fullmatch(
+                r"[A-Za-z]+ed|built|bought|found|made|shot|sold",
+                verb2,
+                re.IGNORECASE,
+            )
+        ):
+            verb2 = f"{verb1} {verb2}"
+        primary = [
+            _finish_claim(
+                f"{subject} {verb1} {coordinated.group('object1')}",
+                terminal,
+            ),
+            _finish_claim(
+                f"{subject} {verb2} {coordinated.group('object2')}",
+                terminal,
+            ),
+        ]
+    else:
+        primary = [_finish_claim(core, terminal)]
+
+    return [claim for claim in [*primary, *derived] if claim]
+
+
 def _extract_deterministic_claims(answer: str) -> list[FixedClaim]:
-    """Split an answer deterministically without any model call or cache."""
+    """Split an answer into fresh deterministic atomic claims without a cache."""
     claims: list[FixedClaim] = []
     blocks = re.split(r"[\r\n]+", answer)
 
@@ -109,14 +350,15 @@ def _extract_deterministic_claims(answer: str) -> list[FixedClaim]:
                 ).strip()
                 if not statement or not re.search(r"\w", statement, re.UNICODE):
                     continue
-                claim_id = f"c{len(claims) + 1}"
-                claims.append(
-                    FixedClaim(
-                        claim_id=claim_id,
-                        source_text=statement,
-                        statement=statement,
+                for atomic_statement in _split_atomic_statement(statement):
+                    claim_id = f"c{len(claims) + 1}"
+                    claims.append(
+                        FixedClaim(
+                            claim_id=claim_id,
+                            source_text=statement,
+                            statement=atomic_statement,
+                        )
                     )
-                )
 
     if claims:
         return claims
@@ -125,6 +367,7 @@ def _extract_deterministic_claims(answer: str) -> list[FixedClaim]:
     return [
         FixedClaim(claim_id="c1", source_text=fallback, statement=fallback)
     ]
+
 
 ProgressCallback = Callable[
     [dict[str, Any]],
@@ -171,7 +414,12 @@ supplied contexts. Do not extract, add, remove, merge, split, rewrite, renumber,
 reorder claims.
 
 Judgment rules:
-- verdict is 1 only if the complete statement is semantically entailed by at least one context.
+- Treat all supplied contexts as one combined evidence set. Different parts of a claim may
+  be supported by different contexts; no single context must entail the complete claim.
+- verdict is 1 only if every factual component of the statement is semantically entailed
+  somewhere in that combined evidence set.
+- Combine evidence across contexts only when the passages clearly concern the same entity
+  and event and contain no contradiction or unsupported causal bridge.
 - Exact wording is not required. Accept ordinary paraphrases with the same meaning, such as
   "distress calls" and "distress alerts", while keeping numbers and named entities exact.
 - verdict is 0 if any material detail is absent, contradicted, or refers to a different entity,

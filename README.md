@@ -198,11 +198,12 @@ poetry run python run_inference.py --interactive
 poetry run python evaluate_ragas.py
 ```
 
-Faithfulness claim boundaries are deterministic: the application splits the same answer
-into the same sentence/semicolon-based claim IDs on every run, without a claim cache.
-Codex judges only those fixed IDs and cannot add, remove, or rewrite claims. Verdicts are
-still freshly generated on every evaluation, so the claim denominator is reproducible
-while an individual Codex verdict can remain nondeterministic.
+Faithfulness claim boundaries are deterministic: the application freshly splits the same
+answer into the same atomic, sentence/clause-based claim IDs on every run. No claim or
+evaluation-result cache is used. Codex judges only those fixed IDs and cannot add, remove,
+or rewrite claims. Evidence may be combined across contexts when it clearly describes the
+same entity and event. Verdicts are freshly generated on every evaluation, so the claim
+denominator is reproducible while an individual Codex verdict can remain nondeterministic.
 
 프로젝트 루트에 `eval_dataset.json`이 있으면 해당 데이터셋을 사용하고, 없으면 내장 예제 한 건을 평가합니다.
 
