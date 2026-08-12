@@ -44,7 +44,7 @@ class TestRagasProgressStream(unittest.TestCase):
         ):
             for stage, progress in (
                 ("validating_input", 5),
-                ("running_codex", 35),
+                ("running_gemini", 35),
                 ("validating_output", 85),
                 ("completed", 100),
             ):

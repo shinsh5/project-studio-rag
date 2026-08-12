@@ -4,9 +4,8 @@
 
 - 일반 RAG 답변과 인덱스 요약: 로컬 Ollama `llama2:7b`
 - 임베딩과 검색: SentenceTransformers + FAISS
-- RAGAS faithfulness 평가: `codex exec` (평가할 때마다 새로 실행, 캐시 없음)
+- RAGAS faithfulness 평가: Gemini API (평가할 때마다 새로 호출, 캐시 없음)
 - 웹 서비스: FastAPI + 내장 웹 UI
-- Gemini API 키는 사용하지 않습니다.
 
 ## 실행 구조
 
@@ -14,7 +13,7 @@
 |---|---|---|
 | 문서 임베딩 | SentenceTransformers | `all-MiniLM-L6-v2` |
 | RAG 답변 및 EU 요약 | Ollama | `llama2:7b` |
-| RAGAS faithfulness 평가 | Codex CLI | `codex exec` |
+| RAGAS faithfulness 평가 | Gemini API | `gemini-2.5-flash-lite` |
 | 벡터 검색 | FAISS | `data/faiss_index.bin` |
 | 웹 서버 | FastAPI/Uvicorn | `0.0.0.0:8000` 권장 |
 
@@ -27,9 +26,9 @@
 - [Poetry](https://python-poetry.org/) `2.x`
 - [Ollama for Windows](https://docs.ollama.com/windows)
 - `llama2:7b` 모델용 최소 약 8GB RAM과 약 4GB 디스크 공간
-- 설치 및 로그인이 완료된 Codex CLI
+- [Gemini API 키](https://aistudio.google.com/apikey)
 
-문서 인덱싱과 질의응답은 로컬 Ollama에서 실행됩니다. RAGAS faithfulness 평가만 Codex CLI 로그인을 사용합니다.
+문서 인덱싱과 질의응답은 로컬 Ollama에서 실행됩니다. RAGAS faithfulness 평가만 Gemini API 키를 사용합니다.
 
 ## 빠른 시작
 
@@ -116,8 +115,10 @@ LLM_RESPONSE_CACHE_DEFAULT=true
 LLM_RESPONSE_CACHE_MAX_SIZE=128
 
 # RAGAS faithfulness evaluation only
-CODEX_MODEL=gpt-5.6-luna
-CODEX_TIMEOUT_SECONDS=300
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_TEMPERATURE=0.0
+GEMINI_TIMEOUT_SECONDS=300
 
 EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
 CHUNKING_STRATEGY=roi_rag
@@ -167,7 +168,7 @@ LAN 또는 Tailscale 접속이 Windows 방화벽에 막히면 `1단계_방화벽
 - 텍스트 직접 입력 또는 UTF-8 텍스트 파일 업로드
 - ROI-RAG 인덱스 생성
 - 인덱스 기반 질의응답
-- Codex CLI 기반 RAGAS faithfulness 평가
+- Gemini API 기반 RAGAS faithfulness 평가
 
 저장소의 `data/` 폴더에는 기본 인덱스가 포함되어 있습니다. 자신의 문서를 사용하려면 웹 UI 또는 CLI로 새 인덱스를 생성하세요.
 
@@ -201,7 +202,7 @@ poetry run python run_inference.py --interactive
 
 ### RAGAS 평가
 
-답변 생성에는 Ollama `llama2:7b`를 사용하고, faithfulness 평가에는 로그인된 Codex CLI를 사용합니다.
+답변 생성에는 Ollama `llama2:7b`를 사용하고, faithfulness 평가에는 Gemini API를 사용합니다.
 
 ```powershell
 poetry run python evaluate_ragas.py
@@ -209,10 +210,11 @@ poetry run python evaluate_ragas.py
 
 Faithfulness claim boundaries are deterministic: the application freshly splits the same
 answer into the same atomic, sentence/clause-based claim IDs on every run. No claim or
-evaluation-result cache is used. Codex judges only those fixed IDs and cannot add, remove,
+evaluation-result cache is used. Gemini judges only those fixed IDs and cannot add, remove,
 or rewrite claims. Evidence may be combined across contexts when it clearly describes the
-same entity and event. Verdicts are freshly generated on every evaluation, so the claim
-denominator is reproducible while an individual Codex verdict can remain nondeterministic.
+same entity and event. Verdicts are freshly generated on every evaluation with
+`temperature=0` for consistency, though an individual Gemini verdict can still be
+nondeterministic.
 
 프로젝트 루트에 `eval_dataset.json`이 있으면 해당 데이터셋을 사용하고, 없으면 내장 예제 한 건을 평가합니다.
 
@@ -230,7 +232,7 @@ http://127.0.0.1:8000/docs
 - `POST /api/build-index`: 텍스트 인덱싱
 - `POST /api/upload-file`: UTF-8 텍스트 파일 업로드
 - `POST /api/query`: RAG 질의응답
-- `POST /api/evaluate-single`: 한 번의 `codex exec` 호출로 RAGAS faithfulness 평가
+- `POST /api/evaluate-single`: 한 번의 Gemini API 호출로 RAGAS faithfulness 평가
 - `POST /api/evaluate-single-stream`: 단계별 진행 상태와 최종 결과를 NDJSON으로 스트리밍
 
 ## 테스트
@@ -270,12 +272,9 @@ Ollama가 실행 중인지 `http://127.0.0.1:11434`와 작업 표시줄의 Ollam
 
 ### RAGAS 평가가 느리거나 실패함
 
-```powershell
-codex login status
-codex exec --ephemeral "Reply with exactly: OK"
-```
+`.env`의 `GEMINI_API_KEY`가 올바르게 설정되어 있는지 확인하세요. 키가 없거나 잘못되면 평가 요청이 즉시 실패합니다.
 
-평가는 답변 생성에 실제로 사용된 전체 컨텍스트를 한 번의 읽기 전용 `codex exec` 호출에 전달합니다. GUI는 입력 확인, 컨텍스트 준비, Codex 판정, 결과 검증, 점수 계산 단계와 경과 시간을 실시간으로 표시합니다. 결과 캐시는 사용하지 않으므로 평가 버튼을 누를 때마다 새로 계산합니다. 필요하면 `.env`의 `CODEX_TIMEOUT_SECONDS`를 조정하세요.
+평가는 답변 생성에 실제로 사용된 전체 컨텍스트를 한 번의 Gemini API 호출에 전달합니다. GUI는 입력 확인, 컨텍스트 준비, Gemini 판정, 결과 검증, 점수 계산 단계와 경과 시간을 실시간으로 표시합니다. 결과 캐시는 사용하지 않으므로 평가 버튼을 누를 때마다 새로 계산합니다. 필요하면 `.env`의 `GEMINI_TIMEOUT_SECONDS`를 조정하세요.
 
 ### 외부 기기에서 접속할 수 없음
 
@@ -303,9 +302,9 @@ project-studio-rag/
 ├── config.py                # 환경변수와 ROI-RAG 설정
 ├── embeddings.py            # 로컬 임베딩
 ├── entropy.py               # RE/DE 엔트로피 계산
-├── evaluate_ragas.py        # Codex exec 기반 RAGAS faithfulness 평가
+├── evaluate_ragas.py        # Gemini API 기반 RAGAS faithfulness 평가
 ├── indexer.py               # 청킹, Evidence Unit 생성, 인덱싱
-├── llm_client.py            # Ollama 및 codex exec 어댑터
+├── llm_client.py            # Ollama 및 Gemini API 어댑터
 ├── roi_rag.py               # 검색 및 답변 파이프라인
 ├── run_gui.py               # 웹 서버 실행
 ├── pyproject.toml           # Poetry 프로젝트 설정

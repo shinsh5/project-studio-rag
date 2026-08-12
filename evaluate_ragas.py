@@ -1,4 +1,4 @@
-"""Evaluate ROI-RAG outputs with RAGAS faithfulness judged by Codex exec."""
+"""Evaluate ROI-RAG outputs with RAGAS faithfulness judged by the Gemini API."""
 
 import asyncio
 import inspect
@@ -17,7 +17,7 @@ from roi_rag import get_roi_rag_pipeline
 
 
 class RagasStructuredOutputError(RuntimeError):
-    """Raised when Codex cannot produce a valid faithfulness evaluation."""
+    """Raised when Gemini cannot produce a valid faithfulness evaluation."""
 
 
 class FixedClaim(BaseModel):
@@ -31,7 +31,7 @@ class FixedClaim(BaseModel):
 
 
 class StrictClaimVerdict(BaseModel):
-    """One Codex verdict for a fixed claim ID."""
+    """One Gemini verdict for a fixed claim ID."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -54,8 +54,8 @@ class StrictStatementVerdict(BaseModel):
     verdict: Literal[0, 1]
 
 
-class CodexFaithfulnessOutput(BaseModel):
-    """Schema-constrained verdicts returned by one Codex exec invocation."""
+class GeminiFaithfulnessOutput(BaseModel):
+    """Schema-constrained verdicts returned by one Gemini invocation."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -447,10 +447,10 @@ def _merge_fixed_claims_with_verdicts(
     expected_ids = [claim.claim_id for claim in claims]
     actual_ids = [verdict.claim_id for verdict in verdicts]
     if len(set(actual_ids)) != len(actual_ids):
-        raise RagasStructuredOutputError("Codex returned a duplicate claim_id.")
+        raise RagasStructuredOutputError("Gemini returned a duplicate claim_id.")
     if set(actual_ids) != set(expected_ids) or len(actual_ids) != len(expected_ids):
         raise RagasStructuredOutputError(
-            "Codex verdict claim IDs do not exactly match the fixed claim set. "
+            "Gemini verdict claim IDs do not exactly match the fixed claim set. "
             f"Expected {expected_ids}, received {actual_ids}."
         )
 
@@ -473,7 +473,7 @@ async def score_faithfulness(
     contexts: list[str],
     progress_callback: ProgressCallback | None = None,
 ) -> FaithfulnessEvaluation:
-    """Score faithfulness with one fresh, schema-constrained Codex exec call."""
+    """Score faithfulness with one fresh, schema-constrained Gemini call."""
     await _emit_progress(
         progress_callback,
         "validating_input",
@@ -498,43 +498,43 @@ async def score_faithfulness(
         f"Fixed claims: {len(fixed_claims)}; contexts: {len(clean_contexts)}",
     )
     prompt = _build_faithfulness_prompt(question, fixed_claims, clean_contexts)
-    schema = CodexFaithfulnessOutput.model_json_schema()
+    schema = GeminiFaithfulnessOutput.model_json_schema()
 
     await _emit_progress(
         progress_callback,
-        "starting_codex",
+        "starting_gemini",
         25,
-        "Codex 평가 프로세스를 시작하는 중",
+        "Gemini 평가 프로세스를 시작하는 중",
     )
     try:
         await _emit_progress(
             progress_callback,
-            "running_codex",
+            "running_gemini",
             35,
-            "Codex exec is judging only the fixed claims against the contexts.",
+            "Gemini is judging only the fixed claims against the contexts.",
         )
         raw_result = await asyncio.wait_for(
             asyncio.to_thread(
-                llm_client.codex_generate_structured,
+                llm_client.gemini_generate_structured,
                 prompt,
                 schema,
             ),
-            timeout=config.CODEX_TIMEOUT_SECONDS + 5,
+            timeout=config.GEMINI_TIMEOUT_SECONDS + 5,
         )
         await _emit_progress(
             progress_callback,
             "validating_output",
             85,
-            "Codex 구조화 응답을 검증하는 중",
+            "Gemini 구조화 응답을 검증하는 중",
         )
-        structured = CodexFaithfulnessOutput.model_validate(raw_result)
+        structured = GeminiFaithfulnessOutput.model_validate(raw_result)
     except TimeoutError:
         raise
     except RagasStructuredOutputError:
         raise
     except (RuntimeError, ValidationError, ValueError) as exc:
         raise RagasStructuredOutputError(
-            f"Codex returned invalid structured faithfulness output: {exc}"
+            f"Gemini returned invalid structured faithfulness output: {exc}"
         ) from exc
 
     scored_claims = _merge_fixed_claims_with_verdicts(
@@ -567,7 +567,7 @@ async def score_faithfulness(
 
 
 async def evaluate_faithfulness(results: list[dict]) -> list[dict]:
-    """Evaluate generated answers sequentially with a fresh Codex judge call."""
+    """Evaluate generated answers sequentially with a fresh Gemini judge call."""
     evaluated = []
     for item in results:
         started_at = time.perf_counter()

@@ -30,41 +30,11 @@ LLM_RESPONSE_CACHE_DEFAULT = os.getenv(
     "true",
 ).lower() in {"1", "true", "yes", "on"}
 LLM_RESPONSE_CACHE_MAX_SIZE = int(os.getenv("LLM_RESPONSE_CACHE_MAX_SIZE", "128"))
-# Only RAGAS faithfulness evaluation uses Codex CLI. Generation remains on Ollama.
-_appdata = os.getenv("APPDATA", "")
-_default_codex_cli = (
-    os.path.join(_appdata, "npm", "codex.cmd")
-    if os.name == "nt" and _appdata
-    else ("codex.cmd" if os.name == "nt" else "codex")
-)
-
-
-def _resolve_codex_cli_path(
-    configured_path: str,
-    *,
-    platform_name: str | None = None,
-    appdata: str | None = None,
-) -> str:
-    """Resolve a bare Windows Codex command through the user's npm folder."""
-    current_platform = platform_name or os.name
-    current_appdata = _appdata if appdata is None else appdata
-    if (
-        current_platform == "nt"
-        and current_appdata
-        and not os.path.isabs(configured_path)
-        and not os.path.dirname(configured_path)
-    ):
-        npm_candidate = os.path.join(current_appdata, "npm", configured_path)
-        if os.path.isfile(npm_candidate):
-            return npm_candidate
-    return configured_path
-
-
-CODEX_CLI_PATH = _resolve_codex_cli_path(
-    os.getenv("CODEX_CLI_PATH", _default_codex_cli)
-)
-CODEX_MODEL = os.getenv("CODEX_MODEL", "gpt-5.6-luna")
-CODEX_TIMEOUT_SECONDS = int(os.getenv("CODEX_TIMEOUT_SECONDS", "300"))
+# Only RAGAS faithfulness evaluation uses the Gemini API. Generation remains on Ollama.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.0"))
+GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "300"))
 
 # Embedding Configuration
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")

@@ -1,36 +1,12 @@
 import json
-import subprocess
 import unittest
-from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import config
 import llm_client
 
 
 class TestLLMClient(unittest.TestCase):
-    def test_bare_windows_codex_path_resolves_through_appdata_npm(self):
-        expected = r"C:\Users\runner\AppData\Roaming\npm\codex.cmd"
-        with patch("config.os.path.isfile", return_value=True):
-            resolved = config._resolve_codex_cli_path(
-                "codex.cmd",
-                platform_name="nt",
-                appdata=r"C:\Users\runner\AppData\Roaming",
-            )
-
-        self.assertEqual(resolved, expected)
-
-    def test_explicit_codex_path_is_preserved(self):
-        explicit = r"D:\tools\codex.cmd"
-        self.assertEqual(
-            config._resolve_codex_cli_path(
-                explicit,
-                platform_name="nt",
-                appdata=r"C:\Users\runner\AppData\Roaming",
-            ),
-            explicit,
-        )
-
     @patch("llm_client._ollama_generate", return_value="local answer")
     def test_internal_generation_uses_ollama(self, mock_generate):
         with patch.object(config, "LLM_BACKEND", "ollama"):
@@ -92,66 +68,106 @@ class TestLLMClient(unittest.TestCase):
             },
         )
 
-    @patch("llm_client.shutil.which", return_value=r"C:\tools\codex.cmd")
-    @patch("llm_client.subprocess.run")
-    def test_codex_evaluator_is_ephemeral_and_read_only(self, mock_run, _mock_which):
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="evaluation result\n", stderr=""
-        )
+    def test_gemini_client_requires_api_key(self):
+        with patch.object(llm_client, "_GEMINI_CLIENT", None):
+            with patch.object(config, "GEMINI_API_KEY", ""):
+                with self.assertRaisesRegex(RuntimeError, "GEMINI_API_KEY"):
+                    llm_client._gemini_client()
 
-        with patch.object(config, "CODEX_MODEL", "gpt-5.6-luna"):
-            result = llm_client.codex_generate("evaluate this")
-
-        self.assertEqual(result, "evaluation result")
-        command = mock_run.call_args.args[0]
-        self.assertIn("--ephemeral", command)
-        self.assertIn("read-only", command)
-        self.assertIn("--ignore-user-config", command)
-        self.assertIn("--ignore-rules", command)
-        self.assertIn("--model", command)
-        self.assertIn("gpt-5.6-luna", command)
-        self.assertEqual(command[-1], "-")
-        self.assertIn("evaluate this", mock_run.call_args.kwargs["input"])
-
-    @patch("llm_client.shutil.which", return_value=r"C:\tools\codex.cmd")
-    @patch("llm_client.subprocess.run")
-    def test_codex_structured_output_uses_schema_and_cleans_temp_files(
-        self, mock_run, _mock_which
-    ):
-        captured_paths = {}
-
-        def fake_run(command, **kwargs):
-            schema_path = command[command.index("--output-schema") + 1]
-            output_path = command[command.index("-o") + 1]
-            captured_paths.update(schema=schema_path, output=output_path)
-            schema = json.loads(Path(schema_path).read_text(encoding="utf-8"))
-            self.assertEqual(schema["required"], ["claims"])
-            Path(output_path).write_text(
-                '{"claims":[{"statement":"claim"}]}',
-                encoding="utf-8",
-            )
-            return subprocess.CompletedProcess(
-                args=command, returncode=0, stdout="", stderr=""
-            )
-
-        mock_run.side_effect = fake_run
-        result = llm_client.codex_generate_structured(
-            "judge",
-            {
-                "type": "object",
-                "properties": {"claims": {"type": "array"}},
-                "required": ["claims"],
-                "additionalProperties": False,
+    def test_schema_conversion_inlines_refs_and_drops_unsupported_keywords(self):
+        schema = {
+            "$defs": {
+                "Verdict": {
+                    "type": "object",
+                    "title": "Verdict",
+                    "additionalProperties": False,
+                    "properties": {
+                        "claim_id": {
+                            "type": "string",
+                            "pattern": "^c[1-9]\\d*$",
+                            "title": "Claim Id",
+                        },
+                        "verdict": {
+                            "type": "integer",
+                            "enum": [0, 1],
+                            "title": "Verdict",
+                        },
+                    },
+                    "required": ["claim_id", "verdict"],
+                },
             },
+            "type": "object",
+            "title": "Output",
+            "additionalProperties": False,
+            "properties": {
+                "verdicts": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/Verdict"},
+                },
+            },
+            "required": ["verdicts"],
+        }
+
+        prepared = llm_client._prepare_response_schema(schema)
+
+        self.assertNotIn("$defs", prepared)
+        self.assertNotIn("title", prepared)
+        self.assertNotIn("additionalProperties", prepared)
+        verdict_item = prepared["properties"]["verdicts"]["items"]
+        self.assertNotIn("$ref", verdict_item)
+        self.assertNotIn("pattern", verdict_item["properties"]["claim_id"])
+        self.assertEqual(verdict_item["required"], ["claim_id", "verdict"])
+        self.assertNotIn("enum", verdict_item["properties"]["verdict"])
+        self.assertEqual(verdict_item["properties"]["verdict"]["type"], "integer")
+
+    @patch.object(llm_client, "_GEMINI_CLIENT", MagicMock())
+    def test_gemini_structured_output_parses_json_response(self):
+        llm_client._GEMINI_CLIENT.models.generate_content.return_value = MagicMock(
+            text='{"verdicts": [{"claim_id": "c1", "verdict": 1}]}'
         )
 
-        self.assertEqual(result["claims"][0]["statement"], "claim")
-        self.assertFalse(Path(captured_paths["schema"]).exists())
-        self.assertFalse(Path(captured_paths["output"]).exists())
-        command = mock_run.call_args.args[0]
-        self.assertIn("--output-schema", command)
-        self.assertIn("-o", command)
-        self.assertEqual(command[-1], "-")
+        with patch.object(config, "GEMINI_MODEL", "gemini-2.5-flash-lite"):
+            result = llm_client.gemini_generate_structured(
+                "judge",
+                {
+                    "type": "object",
+                    "properties": {"verdicts": {"type": "array"}},
+                    "required": ["verdicts"],
+                    "additionalProperties": False,
+                },
+            )
+
+        self.assertEqual(result["verdicts"][0]["claim_id"], "c1")
+        call_kwargs = llm_client._GEMINI_CLIENT.models.generate_content.call_args.kwargs
+        self.assertEqual(call_kwargs["model"], "gemini-2.5-flash-lite")
+        self.assertIn("judge", call_kwargs["contents"])
+        self.assertEqual(
+            call_kwargs["config"].response_mime_type, "application/json"
+        )
+
+    @patch.object(llm_client, "_GEMINI_CLIENT", MagicMock())
+    def test_gemini_structured_output_rejects_empty_response(self):
+        llm_client._GEMINI_CLIENT.models.generate_content.return_value = MagicMock(
+            text=""
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "empty structured response"):
+            llm_client.gemini_generate_structured(
+                "judge",
+                {"type": "object", "properties": {}},
+            )
+
+    @patch.object(llm_client, "_GEMINI_CLIENT", MagicMock())
+    def test_gemini_structured_output_rejects_invalid_json(self):
+        llm_client._GEMINI_CLIENT.models.generate_content.return_value = MagicMock(
+            text="not json"
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "invalid JSON"):
+            llm_client.gemini_generate_structured(
+                "judge",
+                {"type": "object", "properties": {}},
+            )
 
 
 if __name__ == "__main__":

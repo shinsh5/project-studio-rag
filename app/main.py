@@ -55,7 +55,7 @@ async def read_root(request: Request):
         name="index.html",
         context={
             "llm_backend": config.LLM_BACKEND,
-            "ragas_backend": "codex",
+            "ragas_backend": "gemini",
             "response_cache_default": config.LLM_RESPONSE_CACHE_DEFAULT
         }
     )
@@ -200,7 +200,7 @@ def _evaluation_response(eval_result):
             "total_claims": eval_result.total_claims,
             "claims": [claim.model_dump() for claim in eval_result.claims],
             "contexts_evaluated": eval_result.contexts_evaluated,
-            "judge_model": f"codex exec ({config.CODEX_MODEL or 'CLI default'})",
+            "judge_model": f"gemini ({config.GEMINI_MODEL})",
         },
     }
 
@@ -224,7 +224,7 @@ async def evaluate_single(request: EvaluateSingleRequest):
         raise HTTPException(
             status_code=422,
             detail=(
-                "Codex RAGAS judge returned invalid structured output. "
+                "Gemini RAGAS judge returned invalid structured output. "
                 f"Reason: {exc}"
             ),
         )
@@ -232,8 +232,8 @@ async def evaluate_single(request: EvaluateSingleRequest):
         raise HTTPException(
             status_code=504,
             detail=(
-                "Codex RAGAS evaluation timed out after "
-                f"{config.CODEX_TIMEOUT_SECONDS} seconds."
+                "Gemini RAGAS evaluation timed out after "
+                f"{config.GEMINI_TIMEOUT_SECONDS} seconds."
             ),
         )
     except HTTPException:
@@ -278,7 +278,7 @@ async def evaluate_single_stream(request: EvaluateSingleRequest):
                     "type": "error",
                     "status_code": 422,
                     "detail": (
-                        "Codex RAGAS judge returned invalid structured output. "
+                        "Gemini RAGAS judge returned invalid structured output. "
                         f"Reason: {exc}"
                     ),
                 }
@@ -287,8 +287,8 @@ async def evaluate_single_stream(request: EvaluateSingleRequest):
                     "type": "error",
                     "status_code": 504,
                     "detail": (
-                        "Codex RAGAS evaluation timed out after "
-                        f"{config.CODEX_TIMEOUT_SECONDS} seconds."
+                        "Gemini RAGAS evaluation timed out after "
+                        f"{config.GEMINI_TIMEOUT_SECONDS} seconds."
                     ),
                 }
             except Exception as exc:

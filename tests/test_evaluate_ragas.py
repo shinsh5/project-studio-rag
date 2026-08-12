@@ -166,7 +166,7 @@ class TestDeterministicClaimExtraction(unittest.TestCase):
 
 
 class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
-    async def test_scores_fixed_claims_from_one_codex_call(self):
+    async def test_scores_fixed_claims_from_one_gemini_call(self):
         answer = (
             "The caller made 28 false distress calls from Annapolis. "
             "The responses cost $500,000."
@@ -174,11 +174,11 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
         output = {"verdicts": [verdict("c1", 1), verdict("c2", 1)]}
 
         with (
-            patch.object(config, "CODEX_TIMEOUT_SECONDS", 10),
+            patch.object(config, "GEMINI_TIMEOUT_SECONDS", 10),
             patch(
-                "evaluate_ragas.llm_client.codex_generate_structured",
+                "evaluate_ragas.llm_client.gemini_generate_structured",
                 return_value=output,
-            ) as codex,
+            ) as gemini,
         ):
             result = await evaluate_ragas.score_faithfulness(
                 question="How many calls and what cost?",
@@ -201,8 +201,8 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
                 "The responses cost $500,000.",
             ],
         )
-        codex.assert_called_once()
-        prompt, schema = codex.call_args.args
+        gemini.assert_called_once()
+        prompt, schema = gemini.call_args.args
         self.assertIn('"claim_id": "c1"', prompt)
         self.assertIn("Unrelated context", prompt)
         self.assertIn("Do not extract, add, remove", prompt)
@@ -217,7 +217,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
 
         output = {"verdicts": [verdict("c1", 1)]}
         with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
+            "evaluate_ragas.llm_client.gemini_generate_structured",
             return_value=output,
         ):
             result = await evaluate_ragas.score_faithfulness(
@@ -233,8 +233,8 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
             [
                 "validating_input",
                 "preparing_contexts",
-                "starting_codex",
-                "running_codex",
+                "starting_gemini",
+                "running_gemini",
                 "validating_output",
                 "calculating_score",
                 "completed",
@@ -247,9 +247,9 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
     async def test_each_evaluation_rejudges_same_fixed_claims_without_cache(self):
         output = {"verdicts": [verdict("c1", 1), verdict("c2", 0)]}
         with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
+            "evaluate_ragas.llm_client.gemini_generate_structured",
             return_value=output,
-        ) as codex:
+        ) as gemini:
             first = await evaluate_ragas.score_faithfulness(
                 "Question?",
                 "Alpha happened. Beta happened.",
@@ -261,18 +261,18 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
                 ["Alpha happened."],
             )
 
-        self.assertEqual(codex.call_count, 2)
-        self.assertEqual(codex.call_args_list[0].args[0], codex.call_args_list[1].args[0])
+        self.assertEqual(gemini.call_count, 2)
+        self.assertEqual(gemini.call_args_list[0].args[0], gemini.call_args_list[1].args[0])
         self.assertEqual(first.total_claims, second.total_claims)
         self.assertEqual(
             [claim.statement for claim in first.claims],
             [claim.statement for claim in second.claims],
         )
 
-    async def test_reorders_codex_verdicts_to_fixed_claim_order(self):
+    async def test_reorders_gemini_verdicts_to_fixed_claim_order(self):
         output = {"verdicts": [verdict("c2", 0), verdict("c1", 1)]}
         with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
+            "evaluate_ragas.llm_client.gemini_generate_structured",
             return_value=output,
         ):
             result = await evaluate_ragas.score_faithfulness(
@@ -289,7 +289,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
 
     async def test_rejects_missing_or_unknown_claim_ids(self):
         with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
+            "evaluate_ragas.llm_client.gemini_generate_structured",
             return_value={"verdicts": [verdict("c1", 1), verdict("c3", 0)]},
         ):
             with self.assertRaisesRegex(
@@ -305,7 +305,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
     async def test_rejects_duplicate_claim_ids(self):
         repeated = verdict("c1", 1)
         with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
+            "evaluate_ragas.llm_client.gemini_generate_structured",
             return_value={"verdicts": [repeated, repeated]},
         ):
             with self.assertRaisesRegex(
@@ -316,7 +316,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
                     "Question?", "Alpha happened.", ["Alpha happened."]
                 )
 
-    async def test_codex_cannot_rewrite_or_mutate_a_fixed_claim(self):
+    async def test_gemini_cannot_rewrite_or_mutate_a_fixed_claim(self):
         output = {
             "verdicts": [
                 {
@@ -326,7 +326,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
             ]
         }
         with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
+            "evaluate_ragas.llm_client.gemini_generate_structured",
             return_value=output,
         ):
             with self.assertRaisesRegex(
@@ -341,7 +341,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
 
     async def test_wraps_schema_validation_error(self):
         with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
+            "evaluate_ragas.llm_client.gemini_generate_structured",
             return_value={"verdicts": [{"claim_id": "c1"}]},
         ):
             with self.assertRaisesRegex(
@@ -388,7 +388,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
             )
 
     def test_output_schema_contains_only_fixed_id_verdict_fields(self):
-        schema = evaluate_ragas.CodexFaithfulnessOutput.model_json_schema()
+        schema = evaluate_ragas.GeminiFaithfulnessOutput.model_json_schema()
         verdict_schema = schema["$defs"]["StrictClaimVerdict"]
         self.assertEqual(
             set(verdict_schema["required"]),

@@ -1143,9 +1143,9 @@
             const stageLabels = {
                 validating_input: '평가 준비: 입력 확인 중',
                 preparing_contexts: '평가 준비: 컨텍스트 구성 중',
-                starting_codex: 'Codex exec 시작 중',
-                running_codex: 'Codex exec 실행 중',
-                validating_output: 'Codex 응답 검증 중',
+                starting_gemini: 'Gemini 평가 시작 중',
+                running_gemini: 'Gemini 평가 실행 중',
+                validating_output: 'Gemini 응답 검증 중',
                 calculating_score: 'Faithfulness 점수 계산 중',
                 completed: '평가 완료'
             };
@@ -1153,9 +1153,9 @@
             const updateElapsed = () => {
                 const seconds = Math.floor((performance.now() - startedAt) / 1000);
                 progressElapsed.textContent = seconds + '초 경과';
-                if (latestStage === 'running_codex') {
+                if (latestStage === 'running_gemini') {
                     progressHint.textContent =
-                        'Codex exec가 claim 분해와 근거 판정을 수행 중입니다. ' +
+                        'Gemini가 claim 분해와 근거 판정을 수행 중입니다. ' +
                         '내부 진행률은 제공되지 않으며 현재 ' +
                         seconds + '초 경과했습니다.';
                 }
@@ -1164,13 +1164,13 @@
             const updateProgress = (event) => {
                 latestStage = event.stage || latestStage;
                 latestProgress = Number(event.progress ?? latestProgress);
-                const isCodexRunning = latestStage === 'running_codex';
+                const isGeminiRunning = latestStage === 'running_gemini';
 
                 progressBar.classList.toggle(
                     'indeterminate',
-                    isCodexRunning
+                    isGeminiRunning
                 );
-                if (!isCodexRunning) {
+                if (!isGeminiRunning) {
                     progressBar.style.transform = 'none';
                     progressBar.style.width =
                         Math.max(0, Math.min(100, latestProgress)) + '%';
@@ -1180,8 +1180,8 @@
                     stageLabels[latestStage] ||
                     event.message ||
                     '평가 진행 중';
-                progressHint.textContent = isCodexRunning
-                    ? 'Codex exec가 답변 claim을 분해하고 컨텍스트 근거를 판정합니다. 내부 진행률은 제공되지 않습니다.'
+                progressHint.textContent = isGeminiRunning
+                    ? 'Gemini가 답변 claim을 분해하고 컨텍스트 근거를 판정합니다. 내부 진행률은 제공되지 않습니다.'
                     : (event.message || '평가를 진행하고 있습니다.');
             };
 
