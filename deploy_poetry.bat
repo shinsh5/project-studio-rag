@@ -20,6 +20,16 @@ echo [Deploy] Synchronizing Poetry dependencies...
 call "%POETRY_CMD%" sync --no-root
 if errorlevel 1 exit /b 1
 
+rem The self-hosted Actions runner does not necessarily inherit the user's npm
+rem folder in PATH. Pass an absolute Codex CLI path to the deployed server.
+set "CODEX_CLI_PATH=%APPDATA%\npm\codex.cmd"
+if not exist "%CODEX_CLI_PATH%" (
+    echo [Error] Codex CLI was not found: %CODEX_CLI_PATH%
+    echo [Error] Install/login to Codex for the GitHub Actions runner account.
+    exit /b 1
+)
+echo [Deploy] Codex CLI: %CODEX_CLI_PATH%
+
 echo.
 echo [Deploy] Terminating existing server process...
 set "SERVER_LOG_DIR=F:\RAG\logs\project-studio-rag"

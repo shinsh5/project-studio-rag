@@ -37,7 +37,32 @@ _default_codex_cli = (
     if os.name == "nt" and _appdata
     else ("codex.cmd" if os.name == "nt" else "codex")
 )
-CODEX_CLI_PATH = os.getenv("CODEX_CLI_PATH", _default_codex_cli)
+
+
+def _resolve_codex_cli_path(
+    configured_path: str,
+    *,
+    platform_name: str | None = None,
+    appdata: str | None = None,
+) -> str:
+    """Resolve a bare Windows Codex command through the user's npm folder."""
+    current_platform = platform_name or os.name
+    current_appdata = _appdata if appdata is None else appdata
+    if (
+        current_platform == "nt"
+        and current_appdata
+        and not os.path.isabs(configured_path)
+        and not os.path.dirname(configured_path)
+    ):
+        npm_candidate = os.path.join(current_appdata, "npm", configured_path)
+        if os.path.isfile(npm_candidate):
+            return npm_candidate
+    return configured_path
+
+
+CODEX_CLI_PATH = _resolve_codex_cli_path(
+    os.getenv("CODEX_CLI_PATH", _default_codex_cli)
+)
 CODEX_MODEL = os.getenv("CODEX_MODEL", "gpt-5.6-luna")
 CODEX_TIMEOUT_SECONDS = int(os.getenv("CODEX_TIMEOUT_SECONDS", "300"))
 

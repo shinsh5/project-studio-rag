@@ -9,6 +9,28 @@ import llm_client
 
 
 class TestLLMClient(unittest.TestCase):
+    def test_bare_windows_codex_path_resolves_through_appdata_npm(self):
+        expected = r"C:\Users\runner\AppData\Roaming\npm\codex.cmd"
+        with patch("config.os.path.isfile", return_value=True):
+            resolved = config._resolve_codex_cli_path(
+                "codex.cmd",
+                platform_name="nt",
+                appdata=r"C:\Users\runner\AppData\Roaming",
+            )
+
+        self.assertEqual(resolved, expected)
+
+    def test_explicit_codex_path_is_preserved(self):
+        explicit = r"D:\tools\codex.cmd"
+        self.assertEqual(
+            config._resolve_codex_cli_path(
+                explicit,
+                platform_name="nt",
+                appdata=r"C:\Users\runner\AppData\Roaming",
+            ),
+            explicit,
+        )
+
     @patch("llm_client._ollama_generate", return_value="local answer")
     def test_internal_generation_uses_ollama(self, mock_generate):
         with patch.object(config, "LLM_BACKEND", "ollama"):
