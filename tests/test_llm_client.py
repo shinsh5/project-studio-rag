@@ -27,21 +27,33 @@ class TestLLMClient(unittest.TestCase):
         mock_generate.assert_called_once_with("local task", json_mode=True, stop=None)
 
     @patch("llm_client._ollama_client")
-    def test_local_json_generation_does_not_use_ragas_settings(self, mock_factory):
+    def test_local_generation_uses_deterministic_ollama_settings(self, mock_factory):
         mock_factory.return_value.chat.return_value = {
             "message": {"content": '{"score": 1}'}
         }
 
-        result = llm_client._ollama_generate(
-            "local task", json_mode=True, stop=["END"]
-        )
+        with (
+            patch.object(config, "OLLAMA_TEMPERATURE", 0.0),
+            patch.object(config, "OLLAMA_SEED", 42),
+            patch.object(config, "OLLAMA_TOP_K", 1),
+            patch.object(config, "OLLAMA_TOP_P", 1.0),
+        ):
+            result = llm_client._ollama_generate(
+                "local task", json_mode=True, stop=["END"]
+            )
 
         self.assertEqual(result, '{"score": 1}')
         request = mock_factory.return_value.chat.call_args.kwargs
         self.assertEqual(request["format"], "json")
         self.assertEqual(
             request["options"],
-            {"temperature": 0.0, "stop": ["END"]},
+            {
+                "temperature": 0.0,
+                "seed": 42,
+                "top_k": 1,
+                "top_p": 1.0,
+                "stop": ["END"],
+            },
         )
 
     @patch("llm_client.shutil.which", return_value=r"C:\tools\codex.cmd")

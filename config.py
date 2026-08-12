@@ -11,6 +11,10 @@ load_dotenv()
 LLM_BACKEND = os.getenv("LLM_BACKEND", "ollama")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2:7b")
+OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.0"))
+OLLAMA_SEED = int(os.getenv("OLLAMA_SEED", "42"))
+OLLAMA_TOP_K = int(os.getenv("OLLAMA_TOP_K", "1"))
+OLLAMA_TOP_P = float(os.getenv("OLLAMA_TOP_P", "1.0"))
 # Only RAGAS faithfulness evaluation uses Codex CLI. Generation remains on Ollama.
 _appdata = os.getenv("APPDATA", "")
 _default_codex_cli = (

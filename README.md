@@ -103,6 +103,10 @@ Copy-Item .env.example .env
 LLM_BACKEND=ollama
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama2:7b
+OLLAMA_TEMPERATURE=0.0
+OLLAMA_SEED=42
+OLLAMA_TOP_K=1
+OLLAMA_TOP_P=1.0
 
 # RAGAS faithfulness evaluation only
 CODEX_MODEL=gpt-5.6-luna
@@ -111,6 +115,8 @@ CODEX_TIMEOUT_SECONDS=300
 EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
 CHUNKING_STRATEGY=roi_rag
 ```
+
+위 Ollama sampling 설정은 동일한 모델과 동일한 프롬프트에서 답변 변동을 최소화합니다. 프롬프트, 검색 결과, 모델 버전이 바뀌면 답변도 달라질 수 있습니다.
 
 `.env`는 Git에서 제외됩니다. 토큰이나 로그인 파일을 저장소에 커밋하지 마세요.
 

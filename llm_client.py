@@ -39,7 +39,12 @@ def _ollama_client():
 
 def _ollama_generate(prompt: str, json_mode: bool = False, stop=None) -> str:
     try:
-        options = {"temperature": 0.0}
+        options = {
+            "temperature": config.OLLAMA_TEMPERATURE,
+            "seed": config.OLLAMA_SEED,
+            "top_k": config.OLLAMA_TOP_K,
+            "top_p": config.OLLAMA_TOP_P,
+        }
         if stop:
             options["stop"] = [stop] if isinstance(stop, str) else list(stop)
 
