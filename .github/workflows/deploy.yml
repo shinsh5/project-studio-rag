@@ -10,6 +10,11 @@ jobs:
     runs-on: [self-hosted, windows]
 
     steps:
+      - name: Update deployment checkout
+        shell: cmd
+        working-directory: F:\RAG\project-studio-rag
+        run: git pull --ff-only origin main
+
       - name: Trigger Deployment Script
         # Windows 기본 PowerShell은 실행 정책에 따라 임시 .ps1이 차단될 수
         # 있으므로, 이 배치 파일은 GitHub Actions의 cmd 셸로 직접 실행합니다.

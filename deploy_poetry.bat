@@ -38,11 +38,11 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$lis
 if errorlevel 1 exit /b 1
 
 echo.
-echo [Deploy] Restarting server on 127.0.0.1:8000...
+echo [Deploy] Restarting server on 0.0.0.0:8000...
 rem Prevent the GitHub Actions runner from terminating the deployed server
 rem when it cleans up child processes after the workflow job finishes.
 set "RUNNER_TRACKING_ID="
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$process = Start-Process -FilePath '%~dp0.venv\Scripts\python.exe' -ArgumentList @('%~dp0run_gui.py', '--host', '127.0.0.1', '--port', '8000') -WorkingDirectory '%~dp0' -WindowStyle Hidden -RedirectStandardOutput '%SERVER_LOG_DIR%\server.out.log' -RedirectStandardError '%SERVER_LOG_DIR%\server.err.log' -PassThru; [IO.File]::WriteAllText('%SERVER_PID_FILE%', [string]$process.Id)"
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$process = Start-Process -FilePath '%~dp0.venv\Scripts\python.exe' -ArgumentList @('%~dp0run_gui.py', '--host', '0.0.0.0', '--port', '8000') -WorkingDirectory '%~dp0' -WindowStyle Hidden -RedirectStandardOutput '%SERVER_LOG_DIR%\server.out.log' -RedirectStandardError '%SERVER_LOG_DIR%\server.err.log' -PassThru; [IO.File]::WriteAllText('%SERVER_PID_FILE%', [string]$process.Id)"
 if errorlevel 1 exit /b 1
 
 echo [Deploy] Waiting for the server health check...
