@@ -35,6 +35,7 @@ class TestRagasProgressStream(unittest.TestCase):
                 total_claims=1,
                 claims=[
                     StrictStatementVerdict(
+                        claim_id="c1",
                         source_text="Alpha happened.",
                         statement="Alpha happened.",
                         reason="Supported by context 1.",

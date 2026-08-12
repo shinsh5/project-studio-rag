@@ -7,42 +7,70 @@ import config
 import evaluate_ragas
 
 
-def claim(
-    source_text,
-    statement,
-    verdict,
+def verdict(
+    claim_id,
+    value,
     reason="The decisive context passage supports this claim.",
     evidence="context_id 1: matching passage",
 ):
     return {
-        "source_text": source_text,
-        "statement": statement,
-        "verdict": verdict,
+        "claim_id": claim_id,
+        "verdict": value,
         "reason": reason,
         "evidence": evidence,
     }
 
 
+class TestDeterministicClaimExtraction(unittest.TestCase):
+    def test_same_answer_always_produces_same_claims_and_ids(self):
+        answer = "Alpha happened. Beta happened; Gamma happened."
+
+        first = evaluate_ragas._extract_deterministic_claims(answer)
+        second = evaluate_ragas._extract_deterministic_claims(answer)
+
+        self.assertEqual(
+            [claim.model_dump() for claim in first],
+            [claim.model_dump() for claim in second],
+        )
+        self.assertEqual([claim.claim_id for claim in first], ["c1", "c2", "c3"])
+        self.assertEqual(
+            [claim.statement for claim in first],
+            ["Alpha happened.", "Beta happened", "Gamma happened."],
+        )
+
+    def test_preserves_abbreviations_decimals_and_currency(self):
+        answer = (
+            "The U.S. Coast Guard recorded 3.14 incidents. "
+            "The responses cost $500,000."
+        )
+
+        claims = evaluate_ragas._extract_deterministic_claims(answer)
+
+        self.assertEqual(len(claims), 2)
+        self.assertEqual(
+            claims[0].statement,
+            "The U.S. Coast Guard recorded 3.14 incidents.",
+        )
+        self.assertEqual(claims[1].statement, "The responses cost $500,000.")
+
+    def test_splits_numbered_lines_without_making_number_claims(self):
+        claims = evaluate_ragas._extract_deterministic_claims(
+            "1. Alpha happened.\n2. Beta happened."
+        )
+
+        self.assertEqual(
+            [claim.statement for claim in claims],
+            ["Alpha happened.", "Beta happened."],
+        )
+
+
 class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
-    async def test_scores_atomic_claims_from_one_codex_call(self):
+    async def test_scores_fixed_claims_from_one_codex_call(self):
         answer = (
             "The caller made 28 false distress calls from Annapolis. "
             "The responses cost $500,000."
         )
-        output = {
-            "claims": [
-                claim(
-                    "The caller made 28 false distress calls from Annapolis.",
-                    "The caller made 28 false distress calls from Annapolis.",
-                    1,
-                ),
-                claim(
-                    "The responses cost $500,000.",
-                    "The responses cost $500,000.",
-                    1,
-                ),
-            ]
-        }
+        output = {"verdicts": [verdict("c1", 1), verdict("c2", 1)]}
 
         with (
             patch.object(config, "CODEX_TIMEOUT_SECONDS", 10),
@@ -65,31 +93,20 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.supported_claims, 2)
         self.assertEqual(result.total_claims, 2)
         self.assertEqual(result.contexts_evaluated, 3)
+        self.assertEqual(
+            [claim.statement for claim in result.claims],
+            [
+                "The caller made 28 false distress calls from Annapolis.",
+                "The responses cost $500,000.",
+            ],
+        )
         codex.assert_called_once()
         prompt, schema = codex.call_args.args
-        self.assertIn("28 false distress", prompt)
+        self.assertIn('"claim_id": "c1"', prompt)
         self.assertIn("Unrelated context", prompt)
+        self.assertIn("Do not extract, add, remove", prompt)
+        self.assertNotIn("Extract every atomic factual claim", prompt)
         self.assertFalse(schema["additionalProperties"])
-
-    async def test_claim_count_is_not_fixed(self):
-        answer = "Alpha happened. Beta happened. Gamma happened."
-        output = {
-            "claims": [
-                claim("Alpha happened.", "Alpha happened.", 1),
-                claim("Beta happened.", "Beta happened.", 0),
-                claim("Gamma happened.", "Gamma happened.", 1),
-            ]
-        }
-        with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
-            return_value=output,
-        ):
-            result = await evaluate_ragas.score_faithfulness(
-                "What happened?", answer, ["Alpha happened. Gamma happened."]
-            )
-
-        self.assertEqual(result.total_claims, 3)
-        self.assertAlmostEqual(result.value, 2 / 3)
 
     async def test_reports_real_progress_stages_in_order(self):
         events = []
@@ -97,7 +114,7 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
         async def collect_progress(event):
             events.append(event)
 
-        output = {"claims": [claim("Alpha happened.", "Alpha happened.", 1)]}
+        output = {"verdicts": [verdict("c1", 1)]}
         with patch(
             "evaluate_ragas.llm_client.codex_generate_structured",
             return_value=output,
@@ -122,115 +139,109 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
                 "completed",
             ],
         )
+        self.assertIn("Fixed claims: 1", events[1]["message"])
         self.assertEqual(events[0]["progress"], 5)
         self.assertEqual(events[-1]["progress"], 100)
 
-    async def test_each_evaluation_runs_codex_again_without_result_cache(self):
-        output = {"claims": [claim("Alpha happened.", "Alpha happened.", 1)]}
+    async def test_each_evaluation_rejudges_same_fixed_claims_without_cache(self):
+        output = {"verdicts": [verdict("c1", 1), verdict("c2", 0)]}
         with patch(
             "evaluate_ragas.llm_client.codex_generate_structured",
             return_value=output,
         ) as codex:
-            await evaluate_ragas.score_faithfulness(
-                "Question?", "Alpha happened.", ["Alpha happened."]
+            first = await evaluate_ragas.score_faithfulness(
+                "Question?",
+                "Alpha happened. Beta happened.",
+                ["Alpha happened."],
             )
-            await evaluate_ragas.score_faithfulness(
-                "Question?", "Alpha happened.", ["Alpha happened."]
+            second = await evaluate_ragas.score_faithfulness(
+                "Question?",
+                "Alpha happened. Beta happened.",
+                ["Alpha happened."],
             )
 
         self.assertEqual(codex.call_count, 2)
+        self.assertEqual(codex.call_args_list[0].args[0], codex.call_args_list[1].args[0])
+        self.assertEqual(first.total_claims, second.total_claims)
+        self.assertEqual(
+            [claim.statement for claim in first.claims],
+            [claim.statement for claim in second.claims],
+        )
 
-    async def test_source_text_normalization_does_not_abort_evaluation(self):
-        output = {
-            "claims": [
-                claim(
-                    "Caller made twenty-eight false calls",
-                    "The caller made 28 false calls.",
-                    1,
-                )
-            ]
-        }
+    async def test_reorders_codex_verdicts_to_fixed_claim_order(self):
+        output = {"verdicts": [verdict("c2", 0), verdict("c1", 1)]}
         with patch(
             "evaluate_ragas.llm_client.codex_generate_structured",
             return_value=output,
         ):
             result = await evaluate_ragas.score_faithfulness(
-                "How many?",
-                "The caller made 28 false calls.",
-                ["The caller made 28 false calls."],
+                "Question?",
+                "Alpha happened. Beta happened.",
+                ["Alpha happened."],
             )
 
-        self.assertEqual(result.value, 1.0)
+        self.assertEqual(
+            [claim.statement for claim in result.claims],
+            ["Alpha happened.", "Beta happened."],
+        )
+        self.assertEqual([claim.verdict for claim in result.claims], [1, 0])
 
-    async def test_rejects_number_introduced_during_claim_extraction(self):
-        output = {
-            "claims": [
-                claim(
-                    "The caller made false calls.",
-                    "The caller made 3 false calls.",
-                    1,
-                )
-            ]
-        }
+    async def test_rejects_missing_or_unknown_claim_ids(self):
         with patch(
             "evaluate_ragas.llm_client.codex_generate_structured",
-            return_value=output,
+            return_value={"verdicts": [verdict("c1", 1), verdict("c3", 0)]},
         ):
             with self.assertRaisesRegex(
                 evaluate_ragas.RagasStructuredOutputError,
-                "numeric value",
+                "do not exactly match",
             ):
                 await evaluate_ragas.score_faithfulness(
-                    "How many?",
-                    "The caller made false calls.",
-                    ["The caller made 28 false calls."],
+                    "Question?",
+                    "Alpha happened. Beta happened.",
+                    ["Alpha happened."],
                 )
 
-    async def test_allows_answer_number_resolved_outside_source_excerpt(self):
-        answer = (
-            "The caller made 28 false distress calls. "
-            "This information was reported by the Coast Guard."
-        )
-        output = {
-            "claims": [
-                claim(
-                    "This information was reported by the Coast Guard.",
-                    "The Coast Guard reported that the caller made 28 false distress calls.",
-                    1,
-                )
-            ]
-        }
+    async def test_rejects_duplicate_claim_ids(self):
+        repeated = verdict("c1", 1)
         with patch(
             "evaluate_ragas.llm_client.codex_generate_structured",
-            return_value=output,
-        ):
-            result = await evaluate_ragas.score_faithfulness(
-                "How many?",
-                answer,
-                ["The Coast Guard reported 28 false distress calls."],
-            )
-
-        self.assertEqual(result.value, 1.0)
-        self.assertEqual(result.claims[0].verdict, 1)
-
-    async def test_rejects_duplicate_atomic_claims(self):
-        repeated = claim("Alpha happened.", "Alpha happened.", 1)
-        with patch(
-            "evaluate_ragas.llm_client.codex_generate_structured",
-            return_value={"claims": [repeated, repeated]},
+            return_value={"verdicts": [repeated, repeated]},
         ):
             with self.assertRaisesRegex(
                 evaluate_ragas.RagasStructuredOutputError,
-                "duplicate",
+                "duplicate claim_id",
             ):
                 await evaluate_ragas.score_faithfulness(
                     "Question?", "Alpha happened.", ["Alpha happened."]
                 )
 
+    async def test_codex_cannot_rewrite_or_mutate_a_fixed_claim(self):
+        output = {
+            "verdicts": [
+                {
+                    **verdict("c1", 1),
+                    "statement": "The caller made 3 false calls.",
+                }
+            ]
+        }
+        with patch(
+            "evaluate_ragas.llm_client.codex_generate_structured",
+            return_value=output,
+        ):
+            with self.assertRaisesRegex(
+                evaluate_ragas.RagasStructuredOutputError,
+                "invalid structured",
+            ):
+                await evaluate_ragas.score_faithfulness(
+                    "How many?",
+                    "The caller made 28 false calls.",
+                    ["The caller made 28 false calls."],
+                )
+
     async def test_wraps_schema_validation_error(self):
         with patch(
             "evaluate_ragas.llm_client.codex_generate_structured",
-            return_value={"claims": [{"statement": "missing fields"}]},
+            return_value={"verdicts": [{"claim_id": "c1"}]},
         ):
             with self.assertRaisesRegex(
                 evaluate_ragas.RagasStructuredOutputError,
@@ -241,9 +252,12 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
                 )
 
     def test_prompt_accepts_semantically_equivalent_paraphrases(self):
+        claims = evaluate_ragas._extract_deterministic_claims(
+            "The caller made 28 distress calls."
+        )
         prompt = evaluate_ragas._build_faithfulness_prompt(
             "How many calls?",
-            "The caller made 28 distress calls.",
+            claims,
             ["The caller made 28 distress alerts."],
         )
         self.assertIn("Exact wording is not required", prompt)
@@ -251,22 +265,23 @@ class TestFaithfulnessScoring(unittest.IsolatedAsyncioTestCase):
 
     def test_verdict_rejects_values_other_than_zero_or_one(self):
         with self.assertRaises(ValidationError):
-            evaluate_ragas.StrictStatementVerdict(
-                source_text="Alpha happened.",
-                statement="Alpha happened.",
+            evaluate_ragas.StrictClaimVerdict(
+                claim_id="c1",
                 reason="Reason.",
                 evidence="context_id 1",
                 verdict=2,
             )
 
-    def test_output_schema_requires_all_claim_fields(self):
+    def test_output_schema_contains_only_fixed_id_verdict_fields(self):
         schema = evaluate_ragas.CodexFaithfulnessOutput.model_json_schema()
-        verdict_schema = schema["$defs"]["StrictStatementVerdict"]
+        verdict_schema = schema["$defs"]["StrictClaimVerdict"]
         self.assertEqual(
             set(verdict_schema["required"]),
-            {"source_text", "statement", "reason", "evidence", "verdict"},
+            {"claim_id", "reason", "evidence", "verdict"},
         )
+        self.assertNotIn("statement", verdict_schema["properties"])
         self.assertEqual(verdict_schema["properties"]["verdict"]["enum"], [0, 1])
+        self.assertEqual(schema["required"], ["verdicts"])
 
 
 if __name__ == "__main__":

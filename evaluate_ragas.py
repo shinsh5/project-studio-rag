@@ -20,11 +20,33 @@ class RagasStructuredOutputError(RuntimeError):
     """Raised when Codex cannot produce a valid faithfulness evaluation."""
 
 
-class StrictStatementVerdict(BaseModel):
-    """One answer-derived atomic claim and its context-grounding verdict."""
+class FixedClaim(BaseModel):
+    """One deterministically extracted answer claim."""
 
     model_config = ConfigDict(extra="forbid")
 
+    claim_id: str = Field(pattern=r"^c[1-9]\d*$")
+    source_text: str = Field(min_length=1)
+    statement: str = Field(min_length=1)
+
+
+class StrictClaimVerdict(BaseModel):
+    """One Codex verdict for a fixed claim ID."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    claim_id: str = Field(pattern=r"^c[1-9]\d*$")
+    reason: str = Field(min_length=3)
+    evidence: str = Field(min_length=1)
+    verdict: Literal[0, 1]
+
+
+class StrictStatementVerdict(BaseModel):
+    """One fixed answer claim joined with its context-grounding verdict."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    claim_id: str = Field(pattern=r"^c[1-9]\d*$")
     source_text: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     reason: str = Field(min_length=3)
@@ -33,12 +55,11 @@ class StrictStatementVerdict(BaseModel):
 
 
 class CodexFaithfulnessOutput(BaseModel):
-    """Schema-constrained output returned by one Codex exec invocation."""
+    """Schema-constrained verdicts returned by one Codex exec invocation."""
 
     model_config = ConfigDict(extra="forbid")
 
-    claims: list[StrictStatementVerdict] = Field(min_length=1)
-
+    verdicts: list[StrictClaimVerdict] = Field(min_length=1)
 
 class FaithfulnessEvaluation(BaseModel):
     value: float
@@ -48,17 +69,62 @@ class FaithfulnessEvaluation(BaseModel):
     contexts_evaluated: int
 
 
-_NUMBER_RE = re.compile(r"(?<![A-Za-z])\d[\d,]*(?:\.\d+)?")
+_PROTECTED_PERIOD = "\ue000"
+_ABBREVIATION_RE = re.compile(
+    r"\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc|e\.g|i\.e|U\.S|U\.K)\.",
+    re.IGNORECASE,
+)
+_INITIALISM_RE = re.compile(r"\b(?:[A-Za-z]\.){2,}")
 
 
-def _numbers(text: str) -> set[str]:
-    """Normalize numeric literals so Codex cannot silently alter answer values."""
-    return {match.replace(",", "") for match in _NUMBER_RE.findall(text)}
+def _protect_periods(text: str) -> str:
+    """Protect periods that are not sentence boundaries."""
+    protected = re.sub(r"(?<=\d)\.(?=\d)", _PROTECTED_PERIOD, text)
+    protected = _ABBREVIATION_RE.sub(
+        lambda match: match.group(0).replace(".", _PROTECTED_PERIOD),
+        protected,
+    )
+    return _INITIALISM_RE.sub(
+        lambda match: match.group(0).replace(".", _PROTECTED_PERIOD),
+        protected,
+    )
 
 
-def _normalize_whitespace(text: str) -> str:
-    return " ".join(text.split()).casefold()
+def _extract_deterministic_claims(answer: str) -> list[FixedClaim]:
+    """Split an answer deterministically without any model call or cache."""
+    claims: list[FixedClaim] = []
+    blocks = re.split(r"[\r\n]+", answer)
 
+    for block in blocks:
+        block = re.sub(r"^\s*(?:[-*•]+|\d+[.)])\s+", "", block).strip()
+        if not block:
+            continue
+
+        protected = _protect_periods(block)
+        protected = re.sub(r"([.!?][\"')\]]*)\s+", r"\1\n", protected)
+        for sentence in protected.split("\n"):
+            for clause in re.split(r"\s*;\s*", sentence):
+                statement = " ".join(
+                    clause.replace(_PROTECTED_PERIOD, ".").split()
+                ).strip()
+                if not statement or not re.search(r"\w", statement, re.UNICODE):
+                    continue
+                claim_id = f"c{len(claims) + 1}"
+                claims.append(
+                    FixedClaim(
+                        claim_id=claim_id,
+                        source_text=statement,
+                        statement=statement,
+                    )
+                )
+
+    if claims:
+        return claims
+
+    fallback = " ".join(answer.split()).strip()
+    return [
+        FixedClaim(claim_id="c1", source_text=fallback, statement=fallback)
+    ]
 
 ProgressCallback = Callable[
     [dict[str, Any]],
@@ -87,33 +153,22 @@ async def _emit_progress(
 
 def _build_faithfulness_prompt(
     question: str,
-    answer: str,
+    claims: list[FixedClaim],
     contexts: list[str],
 ) -> str:
     payload = {
         "question": question,
-        "answer": answer,
+        "fixed_claims": [claim.model_dump() for claim in claims],
         "contexts": [
             {"context_id": index + 1, "text": context}
             for index, context in enumerate(contexts)
         ],
     }
-    return f"""Evaluate RAGAS faithfulness for the supplied answer.
+    return f"""Evaluate RAGAS faithfulness for the supplied fixed claims.
 
-Perform both stages in this single response:
-
-1. Extract every atomic factual claim explicitly asserted by the answer.
-2. Judge each extracted claim using only the supplied contexts.
-
-Claim extraction rules:
-- Do not use a fixed number of claims. The number must follow the answer's actual content.
-- Do not invent, correct, broaden, or omit factual claims.
-- Preserve every name, entity, location, date, number, negation, qualifier, and uncertainty.
-- Split a sentence only when it contains multiple independently verifiable factual claims.
-- source_text should identify the shortest answer passage that most directly expresses
-  the claim. Minor quotation, whitespace, and punctuation normalization is allowed.
-- statement may resolve a pronoun using another part of the answer, but it must express
-  only an atomic claim asserted by the answer.
+The claims were extracted deterministically by the application. Judge them using only
+supplied contexts. Do not extract, add, remove, merge, split, rewrite, renumber, or
+reorder claims.
 
 Judgment rules:
 - verdict is 1 only if the complete statement is semantically entailed by at least one context.
@@ -128,6 +183,7 @@ Judgment rules:
 - Do not use outside knowledge.
 - evidence must name the context_id and quote or precisely identify the decisive passage.
 - reason must briefly explain why that evidence supports or fails to support the whole claim.
+- Return exactly one verdict for every fixed claim_id and no other claim_id.
 
 Return only the JSON object required by the supplied output schema.
 
@@ -135,35 +191,33 @@ Input data:
 {json.dumps(payload, ensure_ascii=False, indent=2)}
 """
 
+def _merge_fixed_claims_with_verdicts(
+    claims: list[FixedClaim],
+    verdicts: list[StrictClaimVerdict],
+) -> list[StrictStatementVerdict]:
+    """Require an exact one-to-one verdict mapping for fixed claim IDs."""
+    expected_ids = [claim.claim_id for claim in claims]
+    actual_ids = [verdict.claim_id for verdict in verdicts]
+    if len(set(actual_ids)) != len(actual_ids):
+        raise RagasStructuredOutputError("Codex returned a duplicate claim_id.")
+    if set(actual_ids) != set(expected_ids) or len(actual_ids) != len(expected_ids):
+        raise RagasStructuredOutputError(
+            "Codex verdict claim IDs do not exactly match the fixed claim set. "
+            f"Expected {expected_ids}, received {actual_ids}."
+        )
 
-def _validate_claim_provenance(
-    answer: str,
-    claims: list[StrictStatementVerdict],
-) -> None:
-    """Reject numeric claim mutation and duplicate claims."""
-    seen_statements: set[str] = set()
-
-    for claim in claims:
-        # source_text is audit metadata, not a scoring input. Codex may normalize
-        # punctuation or resolve references, so textual mismatch must not abort
-        # an otherwise valid evaluation.
-        # A claim may resolve a pronoun or reference across answer sentences, so its
-        # exact source excerpt does not always repeat the number. Only numbers absent
-        # from the complete answer are mutations.
-        extra_numbers = _numbers(claim.statement) - _numbers(answer)
-        if extra_numbers:
-            raise RagasStructuredOutputError(
-                "Codex changed or introduced a numeric value while extracting a claim: "
-                + ", ".join(sorted(extra_numbers))
-            )
-
-        normalized_statement = _normalize_whitespace(claim.statement)
-        if normalized_statement in seen_statements:
-            raise RagasStructuredOutputError(
-                "Codex returned a duplicate atomic claim."
-            )
-        seen_statements.add(normalized_statement)
-
+    verdict_by_id = {verdict.claim_id: verdict for verdict in verdicts}
+    return [
+        StrictStatementVerdict(
+            claim_id=claim.claim_id,
+            source_text=claim.source_text,
+            statement=claim.statement,
+            reason=verdict_by_id[claim.claim_id].reason,
+            evidence=verdict_by_id[claim.claim_id].evidence,
+            verdict=verdict_by_id[claim.claim_id].verdict,
+        )
+        for claim in claims
+    ]
 
 async def score_faithfulness(
     question: str,
@@ -187,13 +241,15 @@ async def score_faithfulness(
     if not clean_contexts:
         raise ValueError("contexts are missing.")
 
+    fixed_claims = _extract_deterministic_claims(answer)
+
     await _emit_progress(
         progress_callback,
         "preparing_contexts",
         15,
-        f"평가 컨텍스트 {len(clean_contexts)}개를 준비하는 중",
+        f"Fixed claims: {len(fixed_claims)}; contexts: {len(clean_contexts)}",
     )
-    prompt = _build_faithfulness_prompt(question, answer, clean_contexts)
+    prompt = _build_faithfulness_prompt(question, fixed_claims, clean_contexts)
     schema = CodexFaithfulnessOutput.model_json_schema()
 
     await _emit_progress(
@@ -207,7 +263,7 @@ async def score_faithfulness(
             progress_callback,
             "running_codex",
             35,
-            "Codex exec가 답변의 claim을 분해하고 컨텍스트 근거를 판정하는 중",
+            "Codex exec is judging only the fixed claims against the contexts.",
         )
         raw_result = await asyncio.wait_for(
             asyncio.to_thread(
@@ -233,21 +289,24 @@ async def score_faithfulness(
             f"Codex returned invalid structured faithfulness output: {exc}"
         ) from exc
 
-    _validate_claim_provenance(answer, structured.claims)
+    scored_claims = _merge_fixed_claims_with_verdicts(
+        fixed_claims,
+        structured.verdicts,
+    )
     await _emit_progress(
         progress_callback,
         "calculating_score",
         95,
-        f"claim {len(structured.claims)}개의 최종 점수를 계산하는 중",
+        f"claim {len(scored_claims)}개의 최종 점수를 계산하는 중",
     )
 
-    supported = sum(claim.verdict for claim in structured.claims)
-    total = len(structured.claims)
+    supported = sum(claim.verdict for claim in scored_claims)
+    total = len(scored_claims)
     result = FaithfulnessEvaluation(
         value=supported / total,
         supported_claims=supported,
         total_claims=total,
-        claims=structured.claims,
+        claims=scored_claims,
         contexts_evaluated=len(clean_contexts),
     )
     await _emit_progress(

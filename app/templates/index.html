@@ -1306,7 +1306,7 @@
                         'font-weight: 600; margin-bottom: 0.25rem;';
                     statement.textContent =
                         (claim.verdict === 1 ? '✅' : '❌') +
-                        ' Claim ' + (index + 1) + ': ' + claim.statement;
+                        ' Claim ' + (claim.claim_id || (index + 1)) + ': ' + claim.statement;
 
                     const reason = document.createElement('div');
                     reason.style.cssText =
