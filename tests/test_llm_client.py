@@ -37,6 +37,8 @@ class TestLLMClient(unittest.TestCase):
             patch.object(config, "OLLAMA_SEED", 42),
             patch.object(config, "OLLAMA_TOP_K", 1),
             patch.object(config, "OLLAMA_TOP_P", 1.0),
+            patch.object(config, "OLLAMA_NUM_CTX", 8192),
+            patch.object(config, "OLLAMA_NUM_PREDICT", 160),
         ):
             result = llm_client._ollama_generate(
                 "local task", json_mode=True, stop=["END"]
@@ -52,6 +54,8 @@ class TestLLMClient(unittest.TestCase):
                 "seed": 42,
                 "top_k": 1,
                 "top_p": 1.0,
+                "num_ctx": 8192,
+                "num_predict": 160,
                 "stop": ["END"],
             },
         )

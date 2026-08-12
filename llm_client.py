@@ -44,6 +44,8 @@ def _ollama_generate(prompt: str, json_mode: bool = False, stop=None) -> str:
             "seed": config.OLLAMA_SEED,
             "top_k": config.OLLAMA_TOP_K,
             "top_p": config.OLLAMA_TOP_P,
+            "num_ctx": config.OLLAMA_NUM_CTX,
+            "num_predict": config.OLLAMA_NUM_PREDICT,
         }
         if stop:
             options["stop"] = [stop] if isinstance(stop, str) else list(stop)
