@@ -222,7 +222,7 @@ class FAISSIndexManager:
         else:
             self.has_faiss = False
 
-def build_roi_rag_index(text: str) -> dict:
+def build_roi_rag_index(text: str, source_label: str = "") -> dict:
     """
     Complete offline ROI-RAG pipeline:
     1. Text Chunking
@@ -231,6 +231,9 @@ def build_roi_rag_index(text: str) -> dict:
     4. Greedy Entropy-Guided EU Construction
     5. Adaptive Summarization
     6. FAISS Vector Indexing & Save
+
+    source_label identifies the input for the per-strategy README (e.g. an
+    uploaded filename); it has no effect on indexing itself.
     """
     t0 = time.time()
     print("======================================================")
@@ -355,11 +358,11 @@ def build_roi_rag_index(text: str) -> dict:
     dimension = segment_embeddings.shape[1]
     roi_index_manager = FAISSIndexManager(dimension=dimension)
     roi_index_manager.build_index(eu_embeddings)
-    roi_index_manager.save(config.FAISS_INDEX_PATH)
+    roi_index_manager.save(config.get_faiss_index_path())
 
     # Save embeddings & metadata
-    np.save(config.SEGMENT_EMBEDDINGS_PATH, segment_embeddings)
-    np.save(config.EU_EMBEDDINGS_PATH, eu_embeddings)
+    np.save(config.get_segment_embeddings_path(), segment_embeddings)
+    np.save(config.get_eu_embeddings_path(), eu_embeddings)
 
     index_data = {
         "segments": segments,
@@ -371,11 +374,73 @@ def build_roi_rag_index(text: str) -> dict:
         index_data["parent_chunks"] = parent_chunks
         index_data["leaf_to_parent"] = leaf_to_parent
 
-    with open(config.INDEX_PATH, "w", encoding="utf-8") as f:
+    with open(config.get_index_path(), "w", encoding="utf-8") as f:
         json.dump(index_data, f, ensure_ascii=False)
 
-    print(f"[Indexer] Index successfully saved to {config.DATA_DIR}. Total build time: {time.time()-t0:.1f}s")
+    _write_index_readme(
+        text=text,
+        source_label=source_label,
+        is_stb=is_stb,
+        segments_count=len(segments),
+        eus_count=len(evidence_units),
+        build_seconds=time.time() - t0,
+    )
+
+    data_dir = config.get_data_dir()
+    print(f"[Indexer] Index successfully saved to {data_dir}. Total build time: {time.time()-t0:.1f}s")
     return {**index_data, "eu_embeddings": eu_embeddings, "segment_embeddings": segment_embeddings}
+
+
+def _write_index_readme(
+    *,
+    text: str,
+    source_label: str,
+    is_stb: bool,
+    segments_count: int,
+    eus_count: int,
+    build_seconds: float,
+) -> None:
+    """Record what input and parameters produced the current strategy's index."""
+    preview = " ".join(text.split())[:200]
+    if len(text) > 200:
+        preview += "..."
+
+    lines = [
+        f"# {config.CHUNKING_STRATEGY} Index",
+        "",
+        f"- Built at: {time.strftime('%Y-%m-%d %H:%M:%S')}",
+        f"- Source: {source_label or '(직접 입력한 텍스트)'}",
+        f"- Source length: {len(text):,} characters",
+        f"- Segments: {segments_count}",
+        f"- Evidence Units: {eus_count}",
+        f"- Build time: {build_seconds:.1f}s",
+        "",
+        "## Parameters",
+        "",
+        f"- CHUNK_SIZE: {config.CHUNK_SIZE}",
+        f"- CHUNK_OVERLAP: {config.CHUNK_OVERLAP}",
+    ]
+    if is_stb:
+        lines += [
+            f"- STB_LEAF_SIZE: {config.STB_LEAF_SIZE}",
+            f"- STB_LEAF_OVERLAP: {config.STB_LEAF_OVERLAP}",
+            f"- STB_LEAVES_PER_PARENT: {config.STB_LEAVES_PER_PARENT}",
+            f"- AUTOMERGE_THRESHOLD: {config.AUTOMERGE_THRESHOLD}",
+        ]
+    lines += [
+        f"- MAX_EU_SIZE: {config.MAX_EU_SIZE}",
+        f"- THETA_RE: {config.THETA_RE}",
+        f"- TAU_LOW / TAU_HIGH: {config.TAU_LOW} / {config.TAU_HIGH}",
+        f"- EMBEDDING_MODEL_NAME: {config.EMBEDDING_MODEL_NAME}",
+        "",
+        "## Source preview",
+        "",
+        f"> {preview}" if preview else "> (empty)",
+        "",
+    ]
+
+    with open(config.get_index_readme_path(), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
 
 def _load_embeddings(npy_path: str, json_key: str, index_data: dict) -> np.ndarray:
     if os.path.exists(npy_path):
@@ -383,21 +448,33 @@ def _load_embeddings(npy_path: str, json_key: str, index_data: dict) -> np.ndarr
     arr = index_data.get(json_key, [])
     return np.array(arr, dtype=np.float32)
 
-def load_roi_rag_index() -> tuple[dict, FAISSIndexManager]:
+def load_roi_rag_index_for(strategy: str) -> tuple[dict, FAISSIndexManager]:
     """
-    Loads saved index metadata and initializes FAISS manager for Evidence Units.
+    Loads one chunking strategy's saved index metadata and initializes the
+    FAISS manager for Evidence Units, without touching config.CHUNKING_STRATEGY.
     """
-    if not os.path.exists(config.INDEX_PATH):
-        raise FileNotFoundError("ROI-RAG index metadata file not found. Please build the index first.")
+    index_path = config.get_index_path(strategy)
+    if not os.path.exists(index_path):
+        raise FileNotFoundError(
+            f"ROI-RAG index metadata file not found for strategy "
+            f"'{strategy}'. Please build the index first."
+        )
 
-    with open(config.INDEX_PATH, "r", encoding="utf-8") as f:
+    with open(index_path, "r", encoding="utf-8") as f:
         index_data = json.load(f)
 
-    eu_embeddings = _load_embeddings(config.EU_EMBEDDINGS_PATH, "eu_embeddings", index_data)
+    eu_embeddings = _load_embeddings(
+        config.get_eu_embeddings_path(strategy), "eu_embeddings", index_data
+    )
     dimension = eu_embeddings.shape[1] if len(eu_embeddings) > 0 else 384
 
     index_manager = FAISSIndexManager(dimension=dimension)
-    index_manager.load(config.FAISS_INDEX_PATH)
+    index_manager.load(config.get_faiss_index_path(strategy))
     index_manager.eu_embeddings = eu_embeddings
 
     return index_data, index_manager
+
+
+def load_roi_rag_index() -> tuple[dict, FAISSIndexManager]:
+    """Loads the current strategy's (config.CHUNKING_STRATEGY) saved index."""
+    return load_roi_rag_index_for(config.CHUNKING_STRATEGY)

@@ -72,11 +72,35 @@ EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", 128))
 LLM_SUMMARIZATION_WORKERS = int(os.getenv("LLM_SUMMARIZATION_WORKERS", 1))
 
 # Directory and Storage Paths
+# Each chunking strategy keeps its own index directory (data/<strategy>/) so
+# switching CHUNKING_STRATEGY never overwrites another strategy's index.
 WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(WORKSPACE_DIR, "data")
-INDEX_PATH = os.path.join(DATA_DIR, "roi_rag_index.json")
-FAISS_INDEX_PATH = os.path.join(DATA_DIR, "faiss_index.bin")
-SEGMENT_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "segment_embeddings.npy")
-EU_EMBEDDINGS_PATH = os.path.join(DATA_DIR, "eu_embeddings.npy")
+DATA_ROOT_DIR = os.path.join(WORKSPACE_DIR, "data")
 
-os.makedirs(DATA_DIR, exist_ok=True)
+
+def get_data_dir(strategy: str | None = None) -> str:
+    """Return the index directory for a chunking strategy (default: current)."""
+    resolved_strategy = strategy or CHUNKING_STRATEGY
+    data_dir = os.path.join(DATA_ROOT_DIR, resolved_strategy)
+    os.makedirs(data_dir, exist_ok=True)
+    return data_dir
+
+
+def get_index_path(strategy: str | None = None) -> str:
+    return os.path.join(get_data_dir(strategy), "roi_rag_index.json")
+
+
+def get_faiss_index_path(strategy: str | None = None) -> str:
+    return os.path.join(get_data_dir(strategy), "faiss_index.bin")
+
+
+def get_segment_embeddings_path(strategy: str | None = None) -> str:
+    return os.path.join(get_data_dir(strategy), "segment_embeddings.npy")
+
+
+def get_eu_embeddings_path(strategy: str | None = None) -> str:
+    return os.path.join(get_data_dir(strategy), "eu_embeddings.npy")
+
+
+def get_index_readme_path(strategy: str | None = None) -> str:
+    return os.path.join(get_data_dir(strategy), "README.md")

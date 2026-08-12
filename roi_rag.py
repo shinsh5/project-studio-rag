@@ -18,6 +18,7 @@ from embeddings import get_embedding_model
 _cached_index_data = None
 _cached_index_manager = None
 _cached_index_mtime = None
+_cached_index_strategy = None
 _response_cache: OrderedDict[str, str] = OrderedDict()
 _response_cache_lock = threading.RLock()
 _response_generation_lock = threading.Lock()
@@ -87,9 +88,12 @@ def get_roi_rag_pipeline():
         k: int = config.RETRIEVAL_K,
         use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT,
     ) -> dict:
-        global _cached_index_data, _cached_index_manager, _cached_index_mtime
+        global _cached_index_data, _cached_index_manager, _cached_index_mtime, _cached_index_strategy
 
-        if not os.path.exists(config.INDEX_PATH):
+        index_path = config.get_index_path()
+        current_strategy = config.CHUNKING_STRATEGY
+
+        if not os.path.exists(index_path):
             return {
                 "answer": "Index has not been built yet. Please index some documents first using build_index.py.",
                 "retrieved_contexts": [],
@@ -102,11 +106,20 @@ def get_roi_rag_pipeline():
             }
 
         try:
-            current_mtime = os.path.getmtime(config.INDEX_PATH)
-            if _cached_index_data is None or _cached_index_manager is None or _cached_index_mtime != current_mtime:
+            current_mtime = os.path.getmtime(index_path)
+            if (
+                _cached_index_data is None
+                or _cached_index_manager is None
+                or _cached_index_mtime != current_mtime
+                or _cached_index_strategy != current_strategy
+            ):
                 _cached_index_data, _cached_index_manager = load_roi_rag_index()
                 _cached_index_mtime = current_mtime
-                print(f"[ROIRAG] Index loaded/cached in memory (mtime={current_mtime}).")
+                _cached_index_strategy = current_strategy
+                print(
+                    f"[ROIRAG] Index loaded/cached in memory "
+                    f"(strategy={current_strategy}, mtime={current_mtime})."
+                )
             index_data, index_manager = _cached_index_data, _cached_index_manager
         except Exception as e:
             print(f"[ROIRAG] Error loading index: {e}")
@@ -211,7 +224,7 @@ def get_roi_rag_pipeline():
         api_calls = 0
         tokens_used = 0
         cache_hit = False
-        index_version = f"{current_mtime}:{os.path.getsize(config.INDEX_PATH)}"
+        index_version = f"{current_strategy}:{current_mtime}:{os.path.getsize(index_path)}"
         cache_key = _response_cache_key(prompt, index_version)
 
         try:
