@@ -17,6 +17,14 @@ OLLAMA_TOP_K = int(os.getenv("OLLAMA_TOP_K", "1"))
 OLLAMA_TOP_P = float(os.getenv("OLLAMA_TOP_P", "1.0"))
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "160"))
+OLLAMA_NUM_BATCH = int(os.getenv("OLLAMA_NUM_BATCH", "32"))
+OLLAMA_KEEP_ALIVE = int(os.getenv("OLLAMA_KEEP_ALIVE", "0"))
+OLLAMA_FRESH_RUNNER = os.getenv("OLLAMA_FRESH_RUNNER", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 # Only RAGAS faithfulness evaluation uses Codex CLI. Generation remains on Ollama.
 _appdata = os.getenv("APPDATA", "")
 _default_codex_cli = (

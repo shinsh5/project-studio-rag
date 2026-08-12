@@ -39,6 +39,9 @@ class TestLLMClient(unittest.TestCase):
             patch.object(config, "OLLAMA_TOP_P", 1.0),
             patch.object(config, "OLLAMA_NUM_CTX", 8192),
             patch.object(config, "OLLAMA_NUM_PREDICT", 160),
+            patch.object(config, "OLLAMA_NUM_BATCH", 32),
+            patch.object(config, "OLLAMA_KEEP_ALIVE", 0),
+            patch.object(config, "OLLAMA_FRESH_RUNNER", True),
         ):
             result = llm_client._ollama_generate(
                 "local task", json_mode=True, stop=["END"]
@@ -46,7 +49,13 @@ class TestLLMClient(unittest.TestCase):
 
         self.assertEqual(result, '{"score": 1}')
         request = mock_factory.return_value.chat.call_args.kwargs
+        mock_factory.return_value.generate.assert_called_once_with(
+            model=config.OLLAMA_MODEL,
+            prompt="",
+            keep_alive=0,
+        )
         self.assertEqual(request["format"], "json")
+        self.assertEqual(request["keep_alive"], 0)
         self.assertEqual(
             request["options"],
             {
@@ -56,6 +65,7 @@ class TestLLMClient(unittest.TestCase):
                 "top_p": 1.0,
                 "num_ctx": 8192,
                 "num_predict": 160,
+                "num_batch": 32,
                 "stop": ["END"],
             },
         )

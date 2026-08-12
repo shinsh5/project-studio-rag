@@ -5,10 +5,14 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
 import config
+
+
+_OLLAMA_GENERATION_LOCK = threading.Lock()
 
 
 def generate(prompt: str) -> str:
@@ -46,6 +50,7 @@ def _ollama_generate(prompt: str, json_mode: bool = False, stop=None) -> str:
             "top_p": config.OLLAMA_TOP_P,
             "num_ctx": config.OLLAMA_NUM_CTX,
             "num_predict": config.OLLAMA_NUM_PREDICT,
+            "num_batch": config.OLLAMA_NUM_BATCH,
         }
         if stop:
             options["stop"] = [stop] if isinstance(stop, str) else list(stop)
@@ -54,12 +59,20 @@ def _ollama_generate(prompt: str, json_mode: bool = False, stop=None) -> str:
             "model": config.OLLAMA_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "options": options,
-            "keep_alive": -1,
+            "keep_alive": config.OLLAMA_KEEP_ALIVE,
         }
         if json_mode:
             request["format"] = "json"
 
-        response = _ollama_client().chat(**request)
+        with _OLLAMA_GENERATION_LOCK:
+            client = _ollama_client()
+            if config.OLLAMA_FRESH_RUNNER:
+                client.generate(
+                    model=config.OLLAMA_MODEL,
+                    prompt="",
+                    keep_alive=0,
+                )
+            response = client.chat(**request)
         return response["message"]["content"].strip()
     except Exception as exc:
         print(f"[LLM Client] Ollama Error: {exc}")
@@ -70,8 +83,9 @@ def warmup_ollama_model(model_name: str | None = None):
     """Load the configured Ollama model in a background thread."""
     if config.LLM_BACKEND.lower() != "ollama":
         return
+    if config.OLLAMA_FRESH_RUNNER or config.OLLAMA_KEEP_ALIVE == 0:
+        return
 
-    import threading
 
     model = model_name or config.OLLAMA_MODEL
 
