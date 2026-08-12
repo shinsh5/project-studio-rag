@@ -1,0 +1,88 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 30, "rankSpacing": 45},
+  "themeVariables": {
+    "fontFamily": "Malgun Gothic, Arial, sans-serif",
+    "fontSize": "16px",
+    "primaryColor": "#E8F1FF",
+    "primaryTextColor": "#172033",
+    "primaryBorderColor": "#3973B9",
+    "lineColor": "#526174",
+    "secondaryColor": "#EAF8F0",
+    "tertiaryColor": "#FFF5DD",
+    "clusterBkg": "#F7F9FC",
+    "clusterBorder": "#AAB7C6"
+  }
+}}%%
+flowchart TB
+    TITLE["ROI-RAG Architecture<br/><small>현재 구현 + BM25 확장 예정 위치</small>"]
+
+    subgraph OFFLINE["1. Offline Indexing"]
+        direction LR
+        DOC["원본 문서"] --> STRATEGY{"Chunking Strategy"}
+        STRATEGY -->|"ROI-RAG"| SEG["일반 Segment<br/>Chunk 200 / Overlap 50"]
+        STRATEGY -->|"Small-to-Big"| LEAF["Leaf Segment<br/>Leaf 80 / Overlap 20"]
+        LEAF --> PARENT["Parent Chunk 구성<br/>기본 3개 Leaf"]
+        SEG --> EMB["Segment Embedding<br/>all-MiniLM-L6-v2"]
+        LEAF --> EMB
+        EMB --> NEIGHBOR["Semantic Neighborhood<br/>Top-K 유사 Segment"]
+        NEIGHBOR --> ENTROPY["Entropy 계산<br/>RE + DE"]
+        ENTROPY --> REGIME{"Redundancy Regime"}
+        REGIME -->|"LOW"| RAW["원문 중심 유지"]
+        REGIME -->|"MEDIUM"| PARTIAL["부분 요약"]
+        REGIME -->|"HIGH"| DENSE["고밀도 요약"]
+        RAW --> EU["Evidence Unit 구성"]
+        PARTIAL --> EU
+        DENSE --> EU
+        EU --> CENTROID["EU Centroid Embedding"]
+        CENTROID --> FAISS["FAISS EU Index"]
+        EU --> META["Metadata<br/>Segment / RE / DE / Regime"]
+        PARENT --> META
+        FAISS --> STORE["전략별 Index Directory"]
+        META --> STORE
+    end
+
+    subgraph ONLINE["2. Online Retrieval and Answer Generation"]
+        direction LR
+        QUERY["사용자 질문"] --> QEMB["Query Embedding"]
+        QEMB --> SEARCH["FAISS Top-K EU 검색"]
+        STORE --> SEARCH
+        SEARCH --> TOPK["Retrieved Evidence Units<br/>Dense Similarity"]
+        TOPK --> ISSTB{"Small-to-Big?"}
+        ISSTB -->|"No"| STANDARD["EU Summary<br/>+ Top Original Snippets"]
+        ISSTB -->|"Yes"| EXPAND["Parent Chunk 집계<br/>AutoMerge Threshold"]
+        EXPAND --> EXPANDED["확장된 Parent Contexts"]
+        STANDARD --> CANDIDATES["Context Candidates"]
+        EXPANDED --> CANDIDATES
+
+        CANDIDATES -. "BM25 도입 예정" .-> DEDUP["Parent ID 중복 제거"]
+        DEDUP -.-> BM25["BM25 Re-ranking / Compression<br/>Top-K + Context Budget"]
+        BM25 -.-> PROMPT["Grounded Prompt Builder"]
+        CANDIDATES -->|"현재 구현"| PROMPT
+
+        PROMPT --> CACHE{"Llama Answer Cache"}
+        CACHE -->|"HIT"| ANSWER["최종 답변"]
+        CACHE -->|"MISS / 비활성"| LLAMA["Ollama · Llama2:7b<br/>Max Output 512"]
+        LLAMA --> ANSWER
+    end
+
+    subgraph EVALUATION["3. RAGAS Faithfulness Evaluation"]
+        direction LR
+        ANSWER --> EINPUT["Question + Answer<br/>+ 실제 전달 Contexts"]
+        CANDIDATES --> EINPUT
+        EINPUT --> CLAIMS["RAGAS Statement Generation"]
+        CLAIMS --> NLI["RAGAS NLI Verdict<br/>Gemini 2.5 Flash Lite"]
+        NLI --> SCORE["Faithfulness<br/>Supported / Total Claims"]
+    end
+
+    TITLE --> DOC
+
+    classDef current fill:#E8F1FF,stroke:#3973B9,color:#172033,stroke-width:1.5px;
+    classDef storage fill:#EAF8F0,stroke:#2E8B57,color:#173826,stroke-width:1.5px;
+    classDef planned fill:#FFF5DD,stroke:#D08A00,color:#4F3500,stroke-width:2px,stroke-dasharray:6 4;
+    classDef result fill:#F0E9FF,stroke:#7856B3,color:#2E1D4C,stroke-width:1.5px;
+
+    class DOC,STRATEGY,SEG,LEAF,PARENT,EMB,NEIGHBOR,ENTROPY,REGIME,RAW,PARTIAL,DENSE,EU,CENTROID,QUERY,QEMB,SEARCH,TOPK,ISSTB,STANDARD,EXPAND,EXPANDED,CANDIDATES,PROMPT,CACHE,LLAMA current;
+    class FAISS,META,STORE storage;
+    class DEDUP,BM25 planned;
+    class ANSWER,EINPUT,CLAIMS,NLI,SCORE result;
