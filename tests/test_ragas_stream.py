@@ -4,9 +4,35 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import QueryRequest, app
 from evaluate_ragas import FaithfulnessEvaluation, StrictStatementVerdict
 
+
+class TestQueryResponseCacheOption(unittest.TestCase):
+    def test_query_request_uses_cache_by_default(self):
+        self.assertTrue(QueryRequest(query="Question?").use_cache)
+
+    def test_api_forwards_cache_choice_and_reports_hit(self):
+        pipeline_result = {
+            "answer": "Cached answer.",
+            "retrieved_contexts": ["Context."],
+            "raw_contexts": [],
+            "latency_ms": 1,
+            "api_calls": 0,
+            "tokens_used": 0,
+            "prompt": "Prompt.",
+            "cache_hit": True,
+        }
+        client = TestClient(app)
+        with patch("app.main.roi_pipeline", return_value=pipeline_result) as pipeline:
+            response = client.post(
+                "/api/query",
+                json={"query": "Question?", "use_cache": False},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["roi_rag"]["cache_hit"])
+        pipeline.assert_called_once_with("Question?", use_cache=False)
 
 class TestRagasProgressStream(unittest.TestCase):
     def test_streams_progress_events_before_result(self):

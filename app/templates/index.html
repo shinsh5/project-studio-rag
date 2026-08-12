@@ -692,6 +692,10 @@
                     <input type="text" id="queryInput" placeholder="Ask any question regarding the indexed documents..." onkeypress="if(event.key === 'Enter') executeQuery()">
                     <button class="btn" style="width: 140px;" onclick="executeQuery()" id="queryBtn">Ask Query</button>
                 </div>
+                <label style="display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.65rem; cursor: pointer; color: var(--text-secondary); font-size: 0.85rem;">
+                    <input type="checkbox" id="useResponseCache" {% if response_cache_default %}checked{% endif %}>
+                    <span>⚡ Llama 답변 캐시 사용 (동일 근거·설정이면 기존 답변 재사용)</span>
+                </label>
                 <div class="sample-queries" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
                     <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-color);">⚡ Redundant Dataset Samples:</span>
                     <button class="sample-badge" onclick="setAndRunQuery('How many false distress calls did the Coast Guard hoax caller make from Annapolis?')">🚨 Coast Guard Hoax Calls</button>
@@ -968,6 +972,7 @@
 
         async function executeQuery() {
             const query = document.getElementById('queryInput').value.trim();
+            const useCache = document.getElementById('useResponseCache').checked;
             if (!query) return;
 
             const btn = document.getElementById('queryBtn');
@@ -1031,7 +1036,7 @@
                 const res = await fetch('/api/query', {
                     method: 'POST',
                     headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query })
+                    body: JSON.stringify({ query, use_cache: useCache })
                 });
                 const data = await parseJsonResponse(res);
 
@@ -1058,11 +1063,15 @@
                     document.getElementById('flowStep3').innerHTML = `✓ 3️⃣ Regimes: [${regimesUsed}]`;
 
                     document.getElementById('flowStep4').className = 'stepper-item done';
-                    document.getElementById('flowStep4').innerHTML = `✓ 4️⃣ Grounded Synthesis (${roi.latency_ms} ms)`;
+                    document.getElementById('flowStep4').innerHTML = roi.cache_hit
+                        ? `✓ 4️⃣ Cached Grounded Answer (${roi.latency_ms} ms)`
+                        : `✓ 4️⃣ Grounded Synthesis (${roi.latency_ms} ms)`;
 
                     // Display metrics
                     document.getElementById('metricLatency').innerText = `⏱ Latency: ${roi.latency_ms} ms`;
-                    document.getElementById('metricCalls').innerText = `🔌 API Calls: ${roi.api_calls}`;
+                    document.getElementById('metricCalls').innerText = roi.cache_hit
+                        ? '⚡ Llama Cache: HIT · API Calls: 0'
+                        : `🔌 API Calls: ${roi.api_calls}`;
                     document.getElementById('metricTokens').innerText = `🪙 Tokens (Est.): ${roi.tokens_used}`;
                     metricsBar.style.display = "flex";
 

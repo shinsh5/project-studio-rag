@@ -3,17 +3,74 @@ ROI-RAG 온라인 추론 파이프라인 모듈.
 질의(Query) 임베딩, FAISS Top-K Evidence Unit 검색, 대표 원문 단락 하이브리드 컨텍스트 구성 및
 LLM 기반 최종 답변 추론을 담당합니다.
 """
+import hashlib
+import json
 import os
+import threading
 import time
-from collections import Counter
+from collections import OrderedDict, Counter
 import config
 import llm_client
 from indexer import load_roi_rag_index
 from embeddings import get_embedding_model
 
+
 _cached_index_data = None
 _cached_index_manager = None
 _cached_index_mtime = None
+_response_cache: OrderedDict[str, str] = OrderedDict()
+_response_cache_lock = threading.RLock()
+_response_generation_lock = threading.Lock()
+
+
+def _response_cache_key(prompt: str, index_version: str) -> str:
+    """Build a stable key from every input that can affect Llama generation."""
+    payload = {
+        "prompt": prompt,
+        "index_version": index_version,
+        "model": config.OLLAMA_MODEL,
+        "options": {
+            "temperature": config.OLLAMA_TEMPERATURE,
+            "seed": config.OLLAMA_SEED,
+            "top_k": config.OLLAMA_TOP_K,
+            "top_p": config.OLLAMA_TOP_P,
+            "num_ctx": config.OLLAMA_NUM_CTX,
+            "num_predict": config.OLLAMA_NUM_PREDICT,
+            "num_batch": config.OLLAMA_NUM_BATCH,
+        },
+    }
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _get_cached_response(cache_key: str) -> str | None:
+    """Return and refresh one in-memory LRU response-cache entry."""
+    with _response_cache_lock:
+        answer = _response_cache.pop(cache_key, None)
+        if answer is not None:
+            _response_cache[cache_key] = answer
+        return answer
+
+
+def _store_cached_response(cache_key: str, answer: str) -> None:
+    """Store one response while enforcing the configured LRU size limit."""
+    with _response_cache_lock:
+        _response_cache.pop(cache_key, None)
+        _response_cache[cache_key] = answer
+        max_size = max(1, config.LLM_RESPONSE_CACHE_MAX_SIZE)
+        while len(_response_cache) > max_size:
+            _response_cache.popitem(last=False)
+
+
+def clear_response_cache() -> None:
+    """Clear Llama answers only; RAGAS evaluations are never cached."""
+    with _response_cache_lock:
+        _response_cache.clear()
 
 def get_roi_rag_pipeline():
     """
@@ -25,7 +82,11 @@ def get_roi_rag_pipeline():
     if config.LLM_BACKEND.lower() == "ollama":
         llm_client.warmup_ollama_model()
 
-    def run_pipeline(query: str, k: int = config.RETRIEVAL_K) -> dict:
+    def run_pipeline(
+        query: str,
+        k: int = config.RETRIEVAL_K,
+        use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT,
+    ) -> dict:
         global _cached_index_data, _cached_index_manager, _cached_index_mtime
 
         if not os.path.exists(config.INDEX_PATH):
@@ -36,7 +97,8 @@ def get_roi_rag_pipeline():
                 "prompt": "",
                 "latency_ms": 0,
                 "api_calls": 0,
-                "tokens_used": 0
+                "tokens_used": 0,
+                "cache_hit": False
             }
 
         try:
@@ -55,7 +117,8 @@ def get_roi_rag_pipeline():
                 "prompt": "",
                 "latency_ms": 0,
                 "api_calls": 0,
-                "tokens_used": 0
+                "tokens_used": 0,
+                "cache_hit": False
             }
 
         start_time = time.time()
@@ -144,14 +207,23 @@ def get_roi_rag_pipeline():
             "Answer:"
         )
 
-        # 4. Generation
+        # 4. Generation (Llama response cache only; RAGAS is always fresh)
         api_calls = 0
         tokens_used = 0
+        cache_hit = False
+        index_version = f"{current_mtime}:{os.path.getsize(config.INDEX_PATH)}"
+        cache_key = _response_cache_key(prompt, index_version)
 
         try:
-            api_calls += 1
-            answer = llm_client.generate(prompt)
-            tokens_used += (len(prompt) + len(answer)) // 4  # Approximate token count by character length
+            with _response_generation_lock:
+                answer = _get_cached_response(cache_key) if use_cache else None
+                cache_hit = answer is not None
+                if answer is None:
+                    api_calls = 1
+                    answer = llm_client.generate(prompt)
+                    tokens_used = (len(prompt) + len(answer)) // 4
+                    if use_cache:
+                        _store_cached_response(cache_key, answer)
         except Exception as e:
             answer = f"[LLM Error: {e}]\n\nFallback Evidence Summaries:\n" + "\n".join([eu["summary"] for eu in retrieved_eus])
 
@@ -164,7 +236,8 @@ def get_roi_rag_pipeline():
             "prompt": prompt,
             "latency_ms": latency_ms,
             "api_calls": api_calls,
-            "tokens_used": tokens_used
+            "tokens_used": tokens_used,
+            "cache_hit": cache_hit
         }
 
     return run_pipeline

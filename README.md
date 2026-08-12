@@ -110,8 +110,10 @@ OLLAMA_TOP_P=1.0
 OLLAMA_NUM_CTX=8192
 OLLAMA_NUM_PREDICT=160
 OLLAMA_NUM_BATCH=32
-OLLAMA_KEEP_ALIVE=0
-OLLAMA_FRESH_RUNNER=true
+OLLAMA_KEEP_ALIVE=-1
+OLLAMA_FRESH_RUNNER=false
+LLM_RESPONSE_CACHE_DEFAULT=true
+LLM_RESPONSE_CACHE_MAX_SIZE=128
 
 # RAGAS faithfulness evaluation only
 CODEX_MODEL=gpt-5.6-luna
@@ -122,6 +124,8 @@ CHUNKING_STRATEGY=roi_rag
 ```
 
 위 Ollama sampling 설정은 동일한 모델과 동일한 프롬프트에서 답변 변동을 최소화합니다. 프롬프트, 검색 결과, 모델 버전이 바뀌면 답변도 달라질 수 있습니다.
+
+GUI의 `Llama 답변 캐시 사용`은 기본 활성화됩니다. 동일한 최종 프롬프트, 모델 설정, 인덱스 버전이면 서버 메모리의 기존 답변을 재사용합니다. 체크를 해제하면 캐시를 읽거나 쓰지 않고 새로 추론합니다. 캐시는 최대 128개인 LRU 방식이며 서버 재시작 또는 인덱스 재생성 시 비워집니다. RAGAS 평가는 이 캐시를 사용하지 않습니다.
 
 `.env`는 Git에서 제외됩니다. 토큰이나 로그인 파일을 저장소에 커밋하지 마세요.
 

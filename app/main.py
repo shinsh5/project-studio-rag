@@ -19,7 +19,7 @@ if parent_dir not in sys.path:
 
 import config
 from indexer import build_roi_rag_index, load_roi_rag_index
-from roi_rag import get_roi_rag_pipeline
+from roi_rag import clear_response_cache, get_roi_rag_pipeline
 from evaluate_ragas import RagasStructuredOutputError, score_faithfulness
 
 app = FastAPI(
@@ -37,6 +37,7 @@ roi_pipeline = get_roi_rag_pipeline()
 # Request Models
 class QueryRequest(BaseModel):
     query: str
+    use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT
 
 class BuildIndexRequest(BaseModel):
     text: str
@@ -54,7 +55,8 @@ async def read_root(request: Request):
         name="index.html",
         context={
             "llm_backend": config.LLM_BACKEND,
-            "ragas_backend": "codex"
+            "ragas_backend": "codex",
+            "response_cache_default": config.LLM_RESPONSE_CACHE_DEFAULT
         }
     )
 
@@ -95,6 +97,7 @@ def build_index(request: BuildIndexRequest):
     try:
         _apply_chunking_config(request)
         index_data = build_roi_rag_index(request.text)
+        clear_response_cache()
         global roi_pipeline
         roi_pipeline = get_roi_rag_pipeline()
 
@@ -133,6 +136,7 @@ def upload_file(
         )
         _apply_chunking_config(req)
         index_data = build_roi_rag_index(text)
+        clear_response_cache()
         global roi_pipeline
         roi_pipeline = get_roi_rag_pipeline()
 
@@ -157,7 +161,7 @@ def execute_query(request: QueryRequest):
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
         
     try:
-        res = roi_pipeline(request.query)
+        res = roi_pipeline(request.query, use_cache=request.use_cache)
         return {
             "status": "success",
             "roi_rag": {
@@ -167,7 +171,8 @@ def execute_query(request: QueryRequest):
                 "latency_ms": res["latency_ms"],
                 "api_calls": res["api_calls"],
                 "tokens_used": res["tokens_used"],
-                "prompt": res["prompt"]
+                "prompt": res["prompt"],
+                "cache_hit": res["cache_hit"]
             }
         }
     except Exception as e:

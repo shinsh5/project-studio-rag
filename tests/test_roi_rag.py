@@ -1,8 +1,11 @@
 import unittest
 import numpy as np
+from unittest.mock import patch
 
 from entropy import calculate_pairwise_similarities, calculate_redundancy_entropy, calculate_diversity_entropy, compute_neighborhood_entropies
 from indexer import segment_text, build_candidate_neighborhoods
+import config
+import roi_rag
 
 class TestROIRAGCore(unittest.TestCase):
     
@@ -67,6 +70,35 @@ class TestROIRAGCore(unittest.TestCase):
         self.assertIn(1, neighborhoods[0])
         self.assertNotIn(2, neighborhoods[0])
         self.assertEqual(sim_matrix.shape, (3, 3))
+
+class TestLlamaResponseCache(unittest.TestCase):
+    def setUp(self):
+        roi_rag.clear_response_cache()
+
+    def tearDown(self):
+        roi_rag.clear_response_cache()
+
+    def test_cache_key_tracks_prompt_model_options_and_index_version(self):
+        first = roi_rag._response_cache_key("prompt", "index-v1")
+        same = roi_rag._response_cache_key("prompt", "index-v1")
+        changed_index = roi_rag._response_cache_key("prompt", "index-v2")
+        with patch.object(config, "OLLAMA_SEED", config.OLLAMA_SEED + 1):
+            changed_option = roi_rag._response_cache_key("prompt", "index-v1")
+
+        self.assertEqual(first, same)
+        self.assertNotEqual(first, changed_index)
+        self.assertNotEqual(first, changed_option)
+
+    def test_response_cache_is_lru_bounded(self):
+        with patch.object(config, "LLM_RESPONSE_CACHE_MAX_SIZE", 2):
+            roi_rag._store_cached_response("a", "answer-a")
+            roi_rag._store_cached_response("b", "answer-b")
+            self.assertEqual(roi_rag._get_cached_response("a"), "answer-a")
+            roi_rag._store_cached_response("c", "answer-c")
+
+        self.assertIsNone(roi_rag._get_cached_response("b"))
+        self.assertEqual(roi_rag._get_cached_response("a"), "answer-a")
+        self.assertEqual(roi_rag._get_cached_response("c"), "answer-c")
 
 if __name__ == '__main__':
     unittest.main()
