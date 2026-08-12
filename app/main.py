@@ -1,10 +1,13 @@
 """
 ROI-RAG 전용 FastAPI 웹 및 REST API 애플리케이션.
 """
+import asyncio
 import os
 import json
+import math
+import time
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import sys
@@ -17,6 +20,7 @@ if parent_dir not in sys.path:
 import config
 from indexer import build_roi_rag_index, load_roi_rag_index
 from roi_rag import get_roi_rag_pipeline
+from evaluate_ragas import RagasStructuredOutputError, score_faithfulness
 
 app = FastAPI(
     title="ROI-RAG Standed Inference API",
@@ -176,61 +180,153 @@ class EvaluateSingleRequest(BaseModel):
     answer: str
     contexts: list[str]
 
-@app.post("/api/evaluate-single")
-def evaluate_single(request: EvaluateSingleRequest):
-    try:
-        from evaluate_ragas import RagasCodexCLI, to_ragas_dataset
-        from embeddings import get_embedding_model
-        from ragas import evaluate
-        from ragas.metrics import faithfulness, answer_relevancy
-        from ragas.run_config import RunConfig
-        
-        eval_llm = RagasCodexCLI()
-        eval_embeddings = get_embedding_model()
-        
-        try:
-            from ragas.embeddings import LangchainEmbeddingsWrapper
-            ragas_embeddings = LangchainEmbeddingsWrapper(eval_embeddings)
-        except Exception:
-            ragas_embeddings = eval_embeddings
-            
-        rc = RunConfig(max_workers=1, timeout=600, max_retries=10)
-        
-        # We need a ground_truth to pass to_ragas_dataset, even if it's empty.
-        results = [{
-            "question": request.question,
-            "answer": request.answer,
-            "contexts": request.contexts,
-            "ground_truth": ""
-        }]
-        
-        ds = to_ragas_dataset(results)
-        metrics = [faithfulness]
-        
-        eval_result = evaluate(
-            dataset=ds,
-            metrics=metrics,
-            llm=eval_llm,
-            embeddings=ragas_embeddings,
-            run_config=rc
-        )
-        
-        try:
-            df = eval_result.to_pandas()
-            f_score = float(df["faithfulness"].iloc[0]) if "faithfulness" in df.columns else 0.0
-        except Exception:
-            try:
-                f_score = float(eval_result["faithfulness"])
-            except:
-                f_score = 0.0
 
-        return {
-            "status": "success",
-            "scores": {
-                "faithfulness": f_score
-            }
-        }
+def _evaluation_response(eval_result):
+    f_score = float(eval_result.value)
+    if not math.isfinite(f_score):
+        raise ValueError(
+            "RAGAS evaluation did not produce a finite faithfulness score."
+        )
+    return {
+        "status": "success",
+        "scores": {"faithfulness": f_score},
+        "details": {
+            "supported_claims": eval_result.supported_claims,
+            "total_claims": eval_result.total_claims,
+            "claims": [claim.model_dump() for claim in eval_result.claims],
+            "contexts_evaluated": eval_result.contexts_evaluated,
+            "judge_model": f"codex exec ({config.CODEX_MODEL or 'CLI default'})",
+        },
+    }
+
+
+def _stream_line(payload: dict) -> str:
+    return json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n"
+
+@app.post("/api/evaluate-single")
+async def evaluate_single(request: EvaluateSingleRequest):
+    try:
+        started_at = time.perf_counter()
+        eval_result = await score_faithfulness(
+            question=request.question,
+            answer=request.answer,
+            contexts=request.contexts,
+        )
+        elapsed = time.perf_counter() - started_at
+        print(f"[RAGAS] Faithfulness finished (elapsed={elapsed:.1f}s)")
+        return _evaluation_response(eval_result)
+    except RagasStructuredOutputError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Codex RAGAS judge returned invalid structured output. "
+                f"Reason: {exc}"
+            ),
+        )
+    except TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                "Codex RAGAS evaluation timed out after "
+                f"{config.CODEX_TIMEOUT_SECONDS} seconds."
+            ),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/evaluate-single-stream")
+async def evaluate_single_stream(request: EvaluateSingleRequest):
+    """Stream real evaluation stages as newline-delimited JSON events."""
+
+    async def event_stream():
+        started_at = time.perf_counter()
+        progress_queue: asyncio.Queue[dict] = asyncio.Queue()
+
+        async def report_progress(event: dict):
+            await progress_queue.put({"type": "progress", **event})
+
+        async def run_evaluation():
+            try:
+                eval_result = await score_faithfulness(
+                    question=request.question,
+                    answer=request.answer,
+                    contexts=request.contexts,
+                    progress_callback=report_progress,
+                )
+                response = _evaluation_response(eval_result)
+                response.update(
+                    {
+                        "type": "result",
+                        "elapsed_seconds": round(
+                            time.perf_counter() - started_at,
+                            3,
+                        ),
+                    }
+                )
+                return response
+            except RagasStructuredOutputError as exc:
+                return {
+                    "type": "error",
+                    "status_code": 422,
+                    "detail": (
+                        "Codex RAGAS judge returned invalid structured output. "
+                        f"Reason: {exc}"
+                    ),
+                }
+            except TimeoutError:
+                return {
+                    "type": "error",
+                    "status_code": 504,
+                    "detail": (
+                        "Codex RAGAS evaluation timed out after "
+                        f"{config.CODEX_TIMEOUT_SECONDS} seconds."
+                    ),
+                }
+            except Exception as exc:
+                import traceback
+
+                traceback.print_exc()
+                return {
+                    "type": "error",
+                    "status_code": 500,
+                    "detail": str(exc),
+                }
+
+        evaluation_task = asyncio.create_task(run_evaluation())
+        try:
+            while not evaluation_task.done() or not progress_queue.empty():
+                try:
+                    event = await asyncio.wait_for(
+                        progress_queue.get(),
+                        timeout=1.0,
+                    )
+                    yield _stream_line(event)
+                except TimeoutError:
+                    yield _stream_line(
+                        {
+                            "type": "heartbeat",
+                            "elapsed_seconds": round(
+                                time.perf_counter() - started_at,
+                                1,
+                            ),
+                        }
+                    )
+
+            final_event = await evaluation_task
+            yield _stream_line(final_event)
+        finally:
+            if not evaluation_task.done():
+                evaluation_task.cancel()
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )

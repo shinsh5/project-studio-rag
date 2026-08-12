@@ -4,7 +4,7 @@
 
 - 일반 RAG 답변과 인덱스 요약: 로컬 Ollama `llama2:7b`
 - 임베딩과 검색: SentenceTransformers + FAISS
-- RAGAS 평가: 로그인된 Codex CLI의 `gpt-5.6-luna`
+- RAGAS faithfulness 평가: `codex exec` (평가할 때마다 새로 실행, 캐시 없음)
 - 웹 서비스: FastAPI + 내장 웹 UI
 - Gemini API 키는 사용하지 않습니다.
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | 문서 임베딩 | SentenceTransformers | `all-MiniLM-L6-v2` |
 | RAG 답변 및 EU 요약 | Ollama | `llama2:7b` |
-| RAGAS 평가 | `codex exec` | `gpt-5.6-luna` |
+| RAGAS faithfulness 평가 | Codex CLI | `codex exec` |
 | 벡터 검색 | FAISS | `data/faiss_index.bin` |
 | 웹 서버 | FastAPI/Uvicorn | `0.0.0.0:8000` 권장 |
 
@@ -27,9 +27,9 @@
 - [Poetry](https://python-poetry.org/) `2.x`
 - [Ollama for Windows](https://docs.ollama.com/windows)
 - `llama2:7b` 모델용 최소 약 8GB RAM과 약 4GB 디스크 공간
-- RAGAS 평가를 사용할 경우 [Codex CLI](https://learn.chatgpt.com/docs/codex/cli)와 사용 가능한 ChatGPT/Codex 계정
+- 설치 및 로그인이 완료된 Codex CLI
 
-Codex CLI는 RAGAS 평가에만 필요합니다. 문서 인덱싱과 일반 질의응답은 Ollama만 설치해도 사용할 수 있습니다.
+문서 인덱싱과 질의응답은 로컬 Ollama에서 실행됩니다. RAGAS faithfulness 평가만 Codex CLI 로그인을 사용합니다.
 
 ## 빠른 시작
 
@@ -104,33 +104,17 @@ LLM_BACKEND=ollama
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama2:7b
 
-CODEX_CLI_PATH=codex.cmd
+# RAGAS faithfulness evaluation only
 CODEX_MODEL=gpt-5.6-luna
 CODEX_TIMEOUT_SECONDS=300
 
 EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
+CHUNKING_STRATEGY=roi_rag
 ```
 
 `.env`는 Git에서 제외됩니다. 토큰이나 로그인 파일을 저장소에 커밋하지 마세요.
 
-### 6. Codex CLI 준비 — RAGAS 평가를 사용할 때만
-
-Windows에서 npm 설치 방식을 사용하면 프로젝트 기본값인 `codex.cmd`와 바로 호환됩니다. Node.js/npm이 먼저 설치되어 있어야 합니다.
-
-```powershell
-npm install -g @openai/codex
-codex
-```
-
-처음 `codex`를 실행하면 **Sign in with ChatGPT**를 선택해 로그인합니다. 로그인 후 확인합니다.
-
-```powershell
-codex login status
-```
-
-다른 방식으로 Codex CLI를 설치했다면 `.env`의 `CODEX_CLI_PATH`를 실제 실행 파일 경로로 변경합니다. 이 프로젝트의 평가 호출은 세션을 저장하지 않는 읽기 전용 `codex exec`로 실행됩니다.
-
-### 7. 웹 서버 실행
+### 6. 웹 서버 실행
 
 로컬, LAN, Tailscale 접속을 모두 허용하려면 반드시 `--host 0.0.0.0`을 지정합니다.
 
@@ -168,7 +152,7 @@ LAN 또는 Tailscale 접속이 Windows 방화벽에 막히면 `1단계_방화벽
 - 텍스트 직접 입력 또는 UTF-8 텍스트 파일 업로드
 - ROI-RAG 인덱스 생성
 - 인덱스 기반 질의응답
-- Codex 기반 RAGAS faithfulness 평가
+- Codex CLI 기반 RAGAS faithfulness 평가
 
 저장소의 `data/` 폴더에는 기본 인덱스가 포함되어 있습니다. 자신의 문서를 사용하려면 웹 UI 또는 CLI로 새 인덱스를 생성하세요.
 
@@ -202,7 +186,7 @@ poetry run python run_inference.py --interactive
 
 ### RAGAS 평가
 
-Codex CLI 로그인이 완료된 환경에서 실행합니다.
+답변 생성에는 Ollama `llama2:7b`를 사용하고, faithfulness 평가에는 로그인된 Codex CLI를 사용합니다.
 
 ```powershell
 poetry run python evaluate_ragas.py
@@ -224,7 +208,8 @@ http://127.0.0.1:8000/docs
 - `POST /api/build-index`: 텍스트 인덱싱
 - `POST /api/upload-file`: UTF-8 텍스트 파일 업로드
 - `POST /api/query`: RAG 질의응답
-- `POST /api/evaluate-single`: Codex 기반 RAGAS 평가
+- `POST /api/evaluate-single`: 한 번의 `codex exec` 호출로 RAGAS faithfulness 평가
+- `POST /api/evaluate-single-stream`: 단계별 진행 상태와 최종 결과를 NDJSON으로 스트리밍
 
 ## 테스트
 
@@ -261,15 +246,14 @@ ollama list
 
 Ollama가 실행 중인지 `http://127.0.0.1:11434`와 작업 표시줄의 Ollama 아이콘을 확인합니다.
 
-### Codex 평가가 실패함
+### RAGAS 평가가 느리거나 실패함
 
 ```powershell
-where.exe codex
 codex login status
-codex exec --model gpt-5.6-luna "Reply with exactly: OK"
+codex exec --ephemeral "Reply with exactly: OK"
 ```
 
-`where.exe codex` 결과와 `.env`의 `CODEX_CLI_PATH`가 일치해야 합니다. 계정 또는 워크스페이스에서 `gpt-5.6-luna`를 사용할 수 있어야 합니다.
+평가는 답변 생성에 실제로 사용된 전체 컨텍스트를 한 번의 읽기 전용 `codex exec` 호출에 전달합니다. GUI는 입력 확인, 컨텍스트 준비, Codex 판정, 결과 검증, 점수 계산 단계와 경과 시간을 실시간으로 표시합니다. 결과 캐시는 사용하지 않으므로 평가 버튼을 누를 때마다 새로 계산합니다. 필요하면 `.env`의 `CODEX_TIMEOUT_SECONDS`를 조정하세요.
 
 ### 외부 기기에서 접속할 수 없음
 
@@ -297,7 +281,7 @@ project-studio-rag/
 ├── config.py                # 환경변수와 ROI-RAG 설정
 ├── embeddings.py            # 로컬 임베딩
 ├── entropy.py               # RE/DE 엔트로피 계산
-├── evaluate_ragas.py        # Codex 기반 RAGAS 평가
+├── evaluate_ragas.py        # Codex exec 기반 RAGAS faithfulness 평가
 ├── indexer.py               # 청킹, Evidence Unit 생성, 인덱싱
 ├── llm_client.py            # Ollama 및 codex exec 어댑터
 ├── roi_rag.py               # 검색 및 답변 파이프라인

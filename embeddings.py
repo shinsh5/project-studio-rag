@@ -29,11 +29,15 @@ class LocalEmbeddingModel:
         return embedding.tolist()
 
     # NumPy interfaces optimized for FAISS and pairwise similarity calculations
-    def embed_documents_np(self, texts: list[str]) -> np.ndarray:
+    def embed_documents_np(
+        self, texts: list[str], show_progress_bar: bool = True
+    ) -> np.ndarray:
         if not texts:
             return np.empty((0, 384), dtype=np.float32)
         embeddings = self._st_model.encode(
-            texts, show_progress_bar=True, batch_size=config.EMBEDDING_BATCH_SIZE
+            texts,
+            show_progress_bar=show_progress_bar,
+            batch_size=config.EMBEDDING_BATCH_SIZE,
         )
         return np.array(embeddings, dtype=np.float32)
 

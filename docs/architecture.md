@@ -75,4 +75,4 @@ ROI-RAG(Redundancy- and Diversity-Oriented RAG)는 단순 텍스트 검색을 �
 - **`.env`**: Ollama 모델과 Codex CLI 실행 설정(`OLLAMA_MODEL`, `CODEX_CLI_PATH` 등)을 관리합니다.
 
 ## 4. Evaluation (평가 - 향후 도입 예정)
-현재 파이프라인(`roi_rag.py`)은 생성된 답변(`answer`)과 참조한 문서(`retrieved_contexts`)를 명확히 분리하여 반환하므로, 향후 **RAGAS** 프레임워크를 연동하여 답변의 신뢰성(Faithfulness)과 문맥 관련성(Answer Relevance)을 정량 평가하기에 매우 용이한 구조를 갖추고 있습니다.
+현재 파이프라인(`roi_rag.py`)은 생성된 답변(`answer`)과 참조한 문서(`retrieved_contexts`)를 분리하여 반환합니다. Faithfulness 평가는 이 값을 한 번의 읽기 전용 `codex exec` 호출에 전달하며, 평가 결과 캐시는 사용하지 않습니다.

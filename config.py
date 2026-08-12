@@ -11,8 +11,7 @@ load_dotenv()
 LLM_BACKEND = os.getenv("LLM_BACKEND", "ollama")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama2:7b")
-
-# RAGAS evaluation uses the authenticated Codex CLI in non-interactive mode.
+# Only RAGAS faithfulness evaluation uses Codex CLI. Generation remains on Ollama.
 _appdata = os.getenv("APPDATA", "")
 _default_codex_cli = (
     os.path.join(_appdata, "npm", "codex.cmd")
