@@ -678,7 +678,7 @@
                 </div>
                 <label style="display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.65rem; cursor: pointer; color: var(--text-secondary); font-size: 0.85rem;">
                     <input type="checkbox" id="useResponseCache" {% if response_cache_default %}checked{% endif %}>
-                    <span>⚡ Llama 답변 캐시 사용 (동일 근거·설정이면 기존 답변 재사용)</span>
+                    <span>⚡ {{ ollama_model }} 답변 캐시 사용 (동일 근거·설정이면 기존 답변 재사용)</span>
                 </label>
                 <div class="sample-queries" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
                     <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-color);">⚡ Redundant Dataset Samples:</span>
@@ -710,7 +710,7 @@
                     <div style="display: flex; gap: 1.5rem;">
                         <span id="metricLatency">⏱ Latency: 0 ms</span>
                         <span id="metricCalls">🔌 API Calls: 0</span>
-                        <span id="metricTokens">🪙 Tokens (Est.): 0</span>
+                        <span id="metricTokens">🪙 Tokens: 0</span>
                     </div>
                     <button class="sample-badge" id="btnEvaluate" style="border-color: var(--accent-color); color: var(--accent-color);" onclick="evaluateRagas()">🎯 RAGAS 평가하기</button>
                 </div>
@@ -951,6 +951,7 @@
                     document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'ROI-RAG + Small-to-Big' : 'ROI-RAG';
                     completeIndexingStepper(data);
                     fetchCurrentIndex(data.chunking_strategy);
+                    dispatchPipelineConfiguration();
                     alert(`Successfully indexed file '${file.name}' with ${data.eus_count} Evidence Units!`);
                 } else {
                     errorIndexingStepper(data.detail || "Upload failed");
@@ -992,6 +993,7 @@
                     document.getElementById('textInput').value = "";
                     completeIndexingStepper(data);
                     fetchCurrentIndex(data.chunking_strategy);
+                    dispatchPipelineConfiguration();
                     alert(`Index built successfully! Created ${data.eus_count} Evidence Units.`);
                 } else {
                     errorIndexingStepper(data.detail || "Indexing failed");
@@ -1127,9 +1129,14 @@
                     // Display metrics
                     document.getElementById('metricLatency').innerText = `⏱ Latency: ${roi.latency_ms} ms`;
                     document.getElementById('metricCalls').innerText = roi.cache_hit
-                        ? '⚡ Llama Cache: HIT · API Calls: 0'
+                        ? '⚡ Cache: HIT · API Calls: 0'
                         : `🔌 API Calls: ${roi.api_calls}`;
-                    document.getElementById('metricTokens').innerText = `🪙 Tokens (Est.): ${roi.tokens_used}`;
+                    // Ollama reports exact counts, so this is no longer an estimate.
+                    const usage = roi.usage || {};
+                    document.getElementById('metricTokens').innerText =
+                        (typeof usage.prompt_tokens === 'number')
+                            ? `🪙 Tokens: ${roi.tokens_used} (prompt ${usage.prompt_tokens} + output ${usage.completion_tokens})`
+                            : `🪙 Tokens: ${roi.tokens_used}`;
                     metricsBar.style.display = "flex";
 
                     // Display retrieved EUs
@@ -1164,6 +1171,7 @@
                     document.getElementById('flowStep4').style.borderColor = '#ef4444';
                     document.getElementById('flowStep4').style.color = '#ef4444';
                     document.getElementById('flowStep4').innerHTML = '❌ 4️⃣ Pipeline Failed';
+                    window.updatePipelineRunState({ phase: 'error', errorNode: 'llm' });
                 }
             } catch (e) {
                 clearTimeout(stepTimer1);
@@ -1174,6 +1182,7 @@
                 document.getElementById('flowStep4').style.borderColor = '#ef4444';
                 document.getElementById('flowStep4').style.color = '#ef4444';
                 document.getElementById('flowStep4').innerHTML = '❌ 4️⃣ Pipeline Error';
+                window.updatePipelineRunState({ phase: 'error', errorNode: 'llm' });
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "Ask Query";
