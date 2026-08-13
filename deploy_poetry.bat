@@ -21,6 +21,18 @@ call "%POETRY_CMD%" sync --no-root
 if errorlevel 1 exit /b 1
 
 echo.
+echo [Deploy] Building React Flow frontend...
+where npm.cmd >nul 2>&1
+if errorlevel 1 (
+    echo [Error] npm.cmd was not found. Install Node.js for the runner account.
+    exit /b 1
+)
+call npm.cmd ci
+if errorlevel 1 exit /b 1
+call npm.cmd run build
+if errorlevel 1 exit /b 1
+
+echo.
 echo [Deploy] Terminating existing server process...
 set "SERVER_LOG_DIR=F:\RAG\logs\project-studio-rag"
 set "SERVER_PID_FILE=%SERVER_LOG_DIR%\server.pid"
@@ -46,7 +58,7 @@ powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$pro
 if errorlevel 1 exit /b 1
 
 echo [Deploy] Waiting for the server health check...
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$deadline = (Get-Date).AddSeconds(90); do { try { $openApi = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/openapi.json' -TimeoutSec 5; if ($openApi.paths.PSObject.Properties.Name -contains '/api/evaluate-single-stream') { exit 0 } } catch {}; Start-Sleep -Seconds 2 } while ((Get-Date) -lt $deadline); exit 1"
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$deadline = (Get-Date).AddSeconds(90); do { try { $openApi = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/openapi.json' -TimeoutSec 5; if ($openApi.paths.PSObject.Properties.Name -contains '/api/evaluate-single-stream') { $flowAsset = Invoke-WebRequest -Uri 'http://127.0.0.1:8000/static/pipeline-flow/pipeline-flow.js' -TimeoutSec 5 -UseBasicParsing; if ($flowAsset.StatusCode -eq 200 -and $flowAsset.RawContentLength -gt 0) { exit 0 } } } catch {}; Start-Sleep -Seconds 2 } while ((Get-Date) -lt $deadline); exit 1"
 if errorlevel 1 (
     echo [Error] Server did not become healthy on port 8000 within 90 seconds.
     exit /b 1

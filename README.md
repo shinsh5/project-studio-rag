@@ -25,6 +25,7 @@
 - 64비트 Python `3.12.x`
 - [Poetry](https://python-poetry.org/) `2.x`
 - [Ollama for Windows](https://docs.ollama.com/windows)
+- Node.js `20.19+` 또는 `22.12+` (React Flow 정적 번들 빌드용)
 - `llama2:7b` 모델용 최소 약 8GB RAM과 약 4GB 디스크 공간
 - [Gemini API 키](https://aistudio.google.com/apikey)
 
@@ -130,7 +131,26 @@ GUI의 `Llama 답변 캐시 사용`은 기본 활성화됩니다. 동일한 최�
 
 `.env`는 Git에서 제외됩니다. 토큰이나 로그인 파일을 저장소에 커밋하지 마세요.
 
-### 6. 웹 서버 실행
+### 6. React Flow 화면 빌드
+
+GUI는 `@xyflow/react` 기반의 인터랙티브 실행 구조도를 사용합니다. 최초 설치 또는 프런트엔드 변경 후 다음 명령을 실행합니다.
+
+```powershell
+npm ci
+npm run build
+```
+
+빌드 결과는 `app/static/pipeline-flow/`에 생성됩니다. 이 디렉터리는 생성물이라 Git에서 제외되며, `deploy_poetry.bat`도 서버 재시작 전에 동일한 빌드를 자동 수행합니다.
+
+그래프에는 전체 실행 순서가 항상 표시됩니다.
+
+```text
+Query → Embedding → ROI-RAG → Small-to-Big → Parent Dedup → BM25 → Prompt Builder → LLM → RAGAS
+```
+
+기본 구성에서는 ROI-RAG만 활성화되고 Small-to-Big, Parent Dedup, BM25는 bypass됩니다. 상단 프리셋 또는 각 노드의 스위치로 `ROI-RAG`, `ROI-RAG + STB`, `ROI-RAG + BM25`, `ROI-RAG + STB + BM25` 구성을 선택할 수 있습니다.
+
+### 7. 웹 서버 실행
 
 로컬, LAN, Tailscale 접속을 모두 허용하려면 반드시 `--host 0.0.0.0`을 지정합니다.
 

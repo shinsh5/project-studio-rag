@@ -56,32 +56,62 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.08);
 }
 
+/*
+ * 3행 배치라 폭보다 높이가 fitView 배율을 결정한다.
+ * 컨텐츠 높이 = 3 × 172 + 2 × 24 = 564px, 여기서 배율 약 0.8이 나온다.
+ */
 .pipeline-flow-canvas {
   width: 100%;
-  height: 410px;
+  height: 500px;
 }
 
 .pipeline-node {
-  width: 198px;
-  min-height: 148px;
-  padding: 13px;
+  width: 150px;
+  /*
+   * 고정 높이. 핸들이 변의 중앙에 붙기 때문에 노드 높이가 제각각이면
+   * 연결선이 비스듬해진다. subtitle과 metric이 모두 두 줄로 접히고
+   * Dedup 안내문까지 붙는 최악의 경우를 기준으로 잡은 값이다.
+   * JSX의 NODE_HEIGHT와 반드시 같아야 한다.
+   */
+  height: 172px;
+  padding: 12px;
   border: 1px solid #405273;
   border-radius: 13px;
   background: linear-gradient(160deg, rgba(30, 40, 66, 0.98), rgba(15, 23, 42, 0.98));
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
   color: #f8fafc;
-  transition: opacity 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition: opacity 160ms ease, border-color 160ms ease,
+    background 200ms ease, box-shadow 160ms ease;
 }
 
-.pipeline-node--active,
+/*
+ * 실행 순서가 한눈에 읽히도록 테두리뿐 아니라 배경색으로 단계를 구분한다.
+ *   지나감(completed) = 가라앉은 파랑  ·  실행 중(running) = 밝은 초록
+ *   대기(idle)        = 기본 남색      ·  건너뜀(bypassed) = 흐리게
+ * 지나간 노드와 아직 오지 않은 노드가 같은 색이면 어디까지 왔는지 알 수 없다.
+ */
+.pipeline-node--active {
+  border-color: #3b82f6;
+}
+
 .pipeline-node--completed {
   border-color: #3b82f6;
+  background: linear-gradient(160deg, rgba(30, 58, 110, 0.98), rgba(17, 33, 68, 0.98));
 }
 
 .pipeline-node--running {
   border-color: #34d399;
+  background: linear-gradient(160deg, rgba(13, 94, 76, 0.98), rgba(6, 52, 45, 0.98));
   box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.14), 0 14px 32px rgba(0, 0, 0, 0.32);
   animation: pipeline-node-pulse 1.3s ease-in-out infinite;
+}
+
+/* 실행 중인 노드는 글자도 한 단계 밝게 올려 대비를 준다. */
+.pipeline-node--running .pipeline-node__subtitle { color: #a7f3d0; }
+.pipeline-node--running .pipeline-node__metric {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(2, 25, 20, 0.5);
+  color: #d1fae5;
 }
 
 .pipeline-node--bypassed {
@@ -93,6 +123,7 @@
 .pipeline-node--unavailable,
 .pipeline-node--error {
   border-color: #ef4444;
+  background: linear-gradient(160deg, rgba(95, 25, 30, 0.96), rgba(45, 15, 22, 0.98));
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
 }
 
@@ -104,7 +135,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .pipeline-node__icon {
@@ -116,7 +147,7 @@
   border-radius: 8px;
   background: rgba(59, 130, 246, 0.17);
   color: #93c5fd;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
 }
 
@@ -124,10 +155,10 @@
   border-radius: 999px;
   background: rgba(96, 165, 250, 0.12);
   color: #93c5fd;
-  padding: 4px 7px;
-  font-size: 8px;
+  padding: 3px 7px;
+  font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
 .pipeline-node--running .pipeline-node__status {
@@ -149,87 +180,44 @@
 .pipeline-node__title {
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.15;
 }
 
 .pipeline-node__subtitle {
-  margin-top: 4px;
+  margin-top: 3px;
   color: #94a3b8;
-  font-size: 10px;
+  font-size: 10.5px;
+  line-height: 1.25;
 }
 
 .pipeline-node__metric {
   overflow: hidden;
-  margin-top: 11px;
+  margin-top: 7px;
   border: 1px solid rgba(96, 165, 250, 0.15);
-  border-radius: 7px;
+  border-radius: 6px;
   background: rgba(2, 6, 23, 0.42);
   color: #cbd5e1;
-  padding: 6px 7px;
-  font-size: 9px;
+  padding: 4px 6px;
+  font-size: 11px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
 }
-
-.pipeline-switch {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin-top: 9px;
-  border: 0;
-  border-radius: 7px;
-  background: rgba(71, 85, 105, 0.24);
-  color: #94a3b8;
-  padding: 5px 7px;
-  font: 700 9px/1 'Outfit', sans-serif;
-  cursor: pointer;
-}
-
-.pipeline-switch i {
-  position: relative;
-  width: 25px;
-  height: 14px;
-  border-radius: 999px;
-  background: #475569;
-}
-
-.pipeline-switch i::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #cbd5e1;
-  transition: 160ms ease;
-}
-
-.pipeline-switch.is-on {
-  background: rgba(16, 185, 129, 0.14);
-  color: #6ee7b7;
-}
-
-.pipeline-switch.is-on i { background: #059669; }
-.pipeline-switch.is-on i::after { transform: translateX(11px); background: #ecfdf5; }
 
 .pipeline-node__auto {
-  margin-top: 9px;
+  margin-top: 6px;
   color: #64748b;
-  font-size: 9px;
+  font-size: 10px;
   text-align: right;
 }
 
 .pipeline-handle {
-  width: 8px !important;
-  height: 8px !important;
+  width: 11px !important;
+  height: 11px !important;
   border: 2px solid #0f172a !important;
   background: #60a5fa !important;
 }
 
-.pipeline-flow-canvas .react-flow__controls,
-.pipeline-flow-canvas .react-flow__minimap {
+.pipeline-flow-canvas .react-flow__controls {
   overflow: hidden;
   border: 1px solid #334155;
   border-radius: 8px;
@@ -257,12 +245,14 @@
 .pipeline-flow-legend i { width: 7px; height: 7px; border-radius: 50%; }
 .legend-active { background: #3b82f6; }
 .legend-running { background: #34d399; }
+.legend-done { background: #2b4a86; }
 .legend-bypassed { background: #64748b; }
 .pipeline-flow-note { margin-left: auto; }
 
 @media (max-width: 900px) {
   .pipeline-flow-toolbar { align-items: flex-start; flex-direction: column; }
   .pipeline-presets { justify-content: flex-start; }
-  .pipeline-flow-canvas { height: 460px; }
+  /* 폭이 좁으면 1열이 더 크게 축소되므로 캔버스를 더 낮춘다 */
+  .pipeline-flow-canvas { height: 420px; }
   .pipeline-flow-note { width: 100%; margin-left: 0; }
 }

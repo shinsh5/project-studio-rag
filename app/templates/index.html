@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG Project Studio | Standalone Inference Portal</title>
+    <title>RAG Project PoC | Standalone Inference Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -86,15 +86,27 @@
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
 
+        /*
+         * 30:70 2열 그리드. 자식 4개가 두 행으로 자동 배치된다.
+         *   1행: 파이프라인 패널        | Online Inference & Retrieval
+         *   2행: 사이드바               | Top-K Evidence Units
+         * 같은 열을 공유하므로 위아래 카드 폭이 정확히 일치한다.
+         * minmax(0, …) 이라야 파이프라인 캔버스가 열 밖으로 넘치지 않는다.
+         */
         main {
             flex: 1;
             display: grid;
-            grid-template-columns: 420px 1fr;
+            grid-template-columns: minmax(0, 0.3fr) minmax(0, 0.7fr);
+            align-items: start;
             gap: 2rem;
             padding: 2rem 2.5rem;
             max-width: 1700px;
             margin: 0 auto;
             width: 100%;
+        }
+
+        @media (max-width: 1280px) {
+            main { grid-template-columns: minmax(0, 1fr); }
         }
 
         .card {
@@ -226,6 +238,8 @@
             gap: 0.75rem;
         }
 
+        /* 답변이 길어도 카드가 무한정 늘어나지 않게 잘라낸다.
+           안 그러면 아래의 RAGAS 진행 바와 점수가 화면 밖으로 밀린다. */
         .answer-box {
             background: var(--bg-color);
             border: 1px solid var(--border-color);
@@ -235,6 +249,8 @@
             font-size: 1.05rem;
             white-space: pre-wrap;
             min-height: 150px;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
         .retrieved-list {
@@ -302,13 +318,24 @@
             padding-top: 1rem;
         }
 
+        /* 샘플 질의 줄. 카드 기본 gap(1.25rem)보다 질의창에 바짝 붙이고,
+           뱃지가 여러 줄로 접힐 때의 줄 간격(row-gap)도 좁게 잡는다. */
+        .sample-queries {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.3rem 0.5rem;
+            margin-top: -0.6rem;
+        }
+
         .sample-badge {
             background: var(--surface-hover);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
             border-radius: 6px;
-            padding: 0.35rem 0.75rem;
+            padding: 0.25rem 0.7rem;
             font-size: 0.8rem;
+            line-height: 1.35;
             cursor: pointer;
             transition: all 0.2s ease;
         }
@@ -366,19 +393,6 @@
             line-height: 1.4;
         }
 
-        /* Live Query Pipeline Stepper */
-        .pipeline-stepper {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(15, 23, 42, 0.85);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            margin: 1rem 0 0.5rem 0;
-            gap: 0.5rem;
-        }
-
         .stepper-item {
             display: flex;
             align-items: center;
@@ -413,16 +427,8 @@
             50% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
         }
 
-        .stepper-arrow {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            opacity: 0.5;
-        }
-
         @media (max-width: 1024px) {
             .flow-diagram { grid-template-columns: repeat(2, 1fr); }
-            .pipeline-stepper { flex-direction: column; align-items: stretch; }
-            .stepper-arrow { display: none; }
         }
 
         /* Offline Flow Diagram in Sidebar */
@@ -444,32 +450,7 @@
             margin-top: 0.5rem;
         }
 
-        /* Chunking Strategy Toggle */
-        .strategy-toggle {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .strategy-btn {
-            flex: 1;
-            padding: 0.6rem 0.75rem;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            background: var(--bg-color);
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-align: center;
-        }
-
-        .strategy-btn.active {
-            background: rgba(59, 130, 246, 0.15);
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
-
+        /* Small-to-Big 파라미터 (Document Indexing 카드 내부) */
         .stb-options {
             display: flex;
             flex-direction: column;
@@ -545,7 +526,7 @@
 <body>
     <header>
         <div class="logo">
-            <span>⚡ RAG Project Studio</span>
+            <span>⚡ RAG Project PoC</span>
         </div>
         <div class="status-badge">
             <div class="status-dot"></div>
@@ -554,47 +535,63 @@
     </header>
 
     <main>
-        <!-- Sidebar: Indexing Control -->
-        <div class="sidebar">
-            <div class="card">
-                <div class="card-title">🏗️ ROI-RAG Offline Indexing Flow</div>
-                <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
-                    대용량 문서나 텍스트를 인덱싱할 때 거치는 4단계 전처리 및 증거 단락(EU) 구성 과정입니다.
-                </p>
-                <div class="flow-diagram-offline">
-                    <div class="flow-step-card" style="padding: 0.75rem;">
-                        <span class="flow-step-num">📦 Step 1</span>
-                        <div class="flow-step-title" style="font-size: 0.85rem;">Document Chunking</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;">텍스트 분할 및 불필요 공백·노이즈 정제</div>
-                    </div>
-                    <div class="flow-step-card" style="padding: 0.75rem;">
-                        <span class="flow-step-num">🔤 Step 2</span>
-                        <div class="flow-step-title" style="font-size: 0.85rem;">Dense Embedding</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;"><code style="color: #60a5fa;">all-MiniLM-L6-v2</code>로 384차원 의미 벡터 변환</div>
-                    </div>
-                    <div class="flow-step-card" style="padding: 0.75rem;">
-                        <span class="flow-step-num">🕸️ Step 3</span>
-                        <div class="flow-step-title" style="font-size: 0.85rem;">FAISS Graph Index</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;">벡터 인덱싱 구축 및 후보 이웃 그래프 구축</div>
-                    </div>
-                    <div class="flow-step-card" style="padding: 0.75rem;">
-                        <span class="flow-step-num">⚖️ Step 4</span>
-                        <div class="flow-step-title" style="font-size: 0.85rem;">Entropy EU Construction</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;">중복/다양성 엔트로피 기반 Evidence Unit 압축</div>
-                    </div>
-                </div>
+        <!-- 1행 왼쪽. .card 래퍼를 쓰지 않는다. pipeline-flow-shell이
+             이미 테두리를 가지고 있어 겹치면 이중 프레임이 된다. -->
+        <div id="pipelineFlowRoot" data-llm-model="{{ ollama_model }}"></div>
+
+        <!-- 1행 오른쪽 -->
+        <div class="card">
+            <div class="card-title">💡 Online Inference & Retrieval</div>
+            <div class="query-bar">
+                <input type="text" id="queryInput" placeholder="Ask any question regarding the indexed documents..." onkeypress="if(event.key === 'Enter') executeQuery()">
+                <button class="btn" style="width: 140px;" onclick="executeQuery()" id="queryBtn">Ask Query</button>
+            </div>
+            <div class="sample-queries">
+                <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-color);">⚡ Redundant Dataset Samples:</span>
+                <button class="sample-badge" onclick="setAndRunQuery('What happened to Dallas Police officer Rogelio Santander at the Home Depot?')">🚔 Dallas Police Shooting</button>
+                <button class="sample-badge" onclick="setAndRunQuery('Where was the stolen Picasso painting La Coiffeuse found after being shipped from Belgium?')">🎨 Picasso Painting Recovery</button>
             </div>
 
-            <div class="card">
-                <div class="card-title">⚙️ Chunking Strategy</div>
-                <div class="strategy-toggle">
-                    <button class="strategy-btn active" id="btnRoiRag" onclick="setStrategy('roi_rag')"
-                        title="엔트로피 기반 Evidence Unit 구성과 적응형 요약. 아래 두 버튼은 이 파이프라인을 대체하지 않고 그 위에 얹힙니다.">ROI-RAG</button>
-                    <button class="strategy-btn" id="btnStb" onclick="setStrategy('small_to_big')"
-                        title="ROI-RAG 파이프라인은 그대로 두고 청킹만 80단어 leaf로 바꾼 뒤, 추론 시 leaf가 속한 parent 청크를 근거로 확장합니다. 인덱스 재빌드가 필요합니다.">+ Small-to-Big</button>
-                    <button class="strategy-btn" id="btnBm25" onclick="toggleBm25()"
-                        title="원문 스니펫을 문장 단위로 나눠 질의와 BM25 점수가 높은 상위 N개만 프롬프트에 넣습니다. EU 요약문은 그대로 둡니다. 청킹 전략과 무관하게 함께 켤 수 있습니다.">+ BM25</button>
+            <div class="answer-box" id="answerBox">Type a query above to see the grounded ROI-RAG answer and retrieved Evidence Units.</div>
+            <div class="metrics-bar" id="metricsBar" style="display: none; align-items: center; justify-content: space-between;">
+                <div style="display: flex; gap: 1.5rem;">
+                    <span id="metricLatency">⏱ Latency: 0 ms</span>
+                    <span id="metricCalls">🔌 API Calls: 0</span>
+                    <span id="metricTokens">🪙 Tokens: 0</span>
                 </div>
+                <button class="sample-badge" id="btnEvaluate" style="border-color: var(--accent-color); color: var(--accent-color);" onclick="evaluateRagas()">🎯 RAGAS 평가하기</button>
+            </div>
+            <div id="ragasProgress" role="status" aria-live="polite" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem;">
+                    <strong id="ragasProgressStage" style="color: var(--accent-color);">평가 준비 중</strong>
+                    <span id="ragasProgressElapsed" style="font-size: 0.85rem; color: var(--text-secondary);">0초</span>
+                </div>
+                <div style="height: 8px; overflow: hidden; position: relative; background: rgba(148, 163, 184, 0.25); border-radius: 999px;">
+                    <div id="ragasProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); border-radius: 999px; transition: width 0.35s ease;"></div>
+                </div>
+                <div id="ragasProgressHint" style="margin-top: 0.55rem; font-size: 0.82rem; color: var(--text-secondary);">서버 연결을 준비하고 있습니다.</div>
+            </div>
+            <div id="ragasResult" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
+                <strong style="color: var(--accent-color); margin-bottom: 0.5rem; display: block;">🏆 RAGAS Evaluation Score</strong>
+                <div style="display: flex; gap: 2rem; font-weight: 600;">
+                    <span id="ragasFaithfulness">Faithfulness: 0.0</span>
+                </div>
+                <div id="ragasDetails" style="margin-top: 0.75rem;"></div>
+            </div>
+        </div>
+
+        <!-- 2행 왼쪽 -->
+        <div class="sidebar">
+            <div class="card">
+                <div class="card-title">📁 Document Indexing</div>
+                <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                    <p style="font-weight: 500; margin-bottom: 0.25rem;">Click to upload document (.txt)</p>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary);">or paste raw text below</p>
+                    <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="handleFileUpload(this)">
+                </div>
+                <textarea id="textInput" rows="6" placeholder="Paste your raw text or article here to build the ROI-RAG index..."></textarea>
+
+                <!-- Small-to-Big 파라미터. 전략 자체는 파이프라인 다이어그램의 스위치로 켠다. -->
                 <div class="stb-options hidden" id="stbOptions">
                     <div class="param-row">
                         <span class="param-label">Leaf Size (words)</span>
@@ -613,16 +610,7 @@
                         <input class="param-input" type="number" id="stbAutoMerge" value="0.0" min="0" max="1" step="0.1">
                     </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <div class="card-title">📁 Document Indexing</div>
-                <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
-                    <p style="font-weight: 500; margin-bottom: 0.25rem;">Click to upload document (.txt)</p>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary);">or paste raw text below</p>
-                    <input type="file" id="fileInput" accept=".txt" style="display: none;" onchange="handleFileUpload(this)">
-                </div>
-                <textarea id="textInput" rows="6" placeholder="Paste your raw text or article here to build the ROI-RAG index..."></textarea>
                 <button class="btn" id="buildBtn" onclick="buildIndex()">🚀 Build ROI-RAG Index</button>
 
                 <!-- Live Offline Indexing Stepper -->
@@ -659,80 +647,39 @@
                 </div>
                 <pre id="indexReadme" style="display: none; margin-top: 0.75rem; padding: 0.75rem; font-size: 0.75rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 6px; max-height: 220px; overflow-y: auto;"></pre>
             </div>
+
+            <div class="card">
+                <div class="card-title">🏗️ ROI-RAG Offline Indexing Flow</div>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
+                    대용량 문서나 텍스트를 인덱싱할 때 거치는 4단계 전처리 및 증거 단락(EU) 구성 과정입니다.
+                </p>
+                <div class="flow-diagram-offline">
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">📦 Step 1</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">Document Chunking</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">텍스트 분할 및 불필요 공백·노이즈 정제</div>
+                    </div>
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">🔤 Step 2</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">Dense Embedding</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;"><code style="color: #60a5fa;">all-MiniLM-L6-v2</code>로 384차원 의미 벡터 변환</div>
+                    </div>
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">🕸️ Step 3</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">FAISS Graph Index</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">벡터 인덱싱 구축 및 후보 이웃 그래프 구축</div>
+                    </div>
+                    <div class="flow-step-card" style="padding: 0.75rem;">
+                        <span class="flow-step-num">⚖️ Step 4</span>
+                        <div class="flow-step-title" style="font-size: 0.85rem;">Entropy EU Construction</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">중복/다양성 엔트로피 기반 Evidence Unit 압축</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Main Content: Query & Results -->
+        <!-- 2행 오른쪽 -->
         <div class="main-content">
-            <div class="card">
-                <div class="card-title">Interactive ROI-RAG Pipeline</div>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
-                    ROI-RAG는 항상 실행되고, Small-to-Big과 BM25는 스위치 또는 프리셋으로 활성화합니다.
-                </p>
-                <div id="pipelineFlowRoot" data-llm-model="{{ ollama_model }}"></div>
-            </div>
-            <div class="card">
-                <div class="card-title">💡 Online Inference & Retrieval</div>
-                <div class="query-bar">
-                    <input type="text" id="queryInput" placeholder="Ask any question regarding the indexed documents..." onkeypress="if(event.key === 'Enter') executeQuery()">
-                    <button class="btn" style="width: 140px;" onclick="executeQuery()" id="queryBtn">Ask Query</button>
-                </div>
-                <label style="display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 0.65rem; cursor: pointer; color: var(--text-secondary); font-size: 0.85rem;">
-                    <input type="checkbox" id="useResponseCache" {% if response_cache_default %}checked{% endif %}>
-                    <span>⚡ {{ ollama_model }} 답변 캐시 사용 (동일 근거·설정이면 기존 답변 재사용)</span>
-                </label>
-                <div class="sample-queries" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
-                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-color);">⚡ Redundant Dataset Samples:</span>
-                    <button class="sample-badge" onclick="setAndRunQuery('What happened to Dallas Police officer Rogelio Santander at the Home Depot?')">🚔 Dallas Police Shooting</button>
-                    <button class="sample-badge" onclick="setAndRunQuery('Where was the stolen Picasso painting La Coiffeuse found after being shipped from Belgium?')">🎨 Picasso Painting Recovery</button>
-                </div>
-
-                <!-- Live RAG Execution Stepper Bar -->
-                <div class="pipeline-stepper" id="livePipelineStepper" style="display: none;">
-                    <div class="stepper-item" id="flowStep1">
-                        <span>1️⃣ Embedding Query</span>
-                    </div>
-                    <span class="stepper-arrow">➔</span>
-                    <div class="stepper-item" id="flowStep2">
-                        <span>2️⃣ FAISS Retrieval</span>
-                    </div>
-                    <span class="stepper-arrow">➔</span>
-                    <div class="stepper-item" id="flowStep3">
-                        <span>3️⃣ Entropy Filter</span>
-                    </div>
-                    <span class="stepper-arrow">➔</span>
-                    <div class="stepper-item" id="flowStep4">
-                        <span>4️⃣ Grounded LLM</span>
-                    </div>
-                </div>
-
-                <div class="answer-box" id="answerBox">Type a query above to see the grounded ROI-RAG answer and retrieved Evidence Units.</div>
-                <div class="metrics-bar" id="metricsBar" style="display: none; align-items: center; justify-content: space-between;">
-                    <div style="display: flex; gap: 1.5rem;">
-                        <span id="metricLatency">⏱ Latency: 0 ms</span>
-                        <span id="metricCalls">🔌 API Calls: 0</span>
-                        <span id="metricTokens">🪙 Tokens: 0</span>
-                    </div>
-                    <button class="sample-badge" id="btnEvaluate" style="border-color: var(--accent-color); color: var(--accent-color);" onclick="evaluateRagas()">🎯 RAGAS 평가하기</button>
-                </div>
-                <div id="ragasProgress" role="status" aria-live="polite" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem;">
-                        <strong id="ragasProgressStage" style="color: var(--accent-color);">평가 준비 중</strong>
-                        <span id="ragasProgressElapsed" style="font-size: 0.85rem; color: var(--text-secondary);">0초</span>
-                    </div>
-                    <div style="height: 8px; overflow: hidden; position: relative; background: rgba(148, 163, 184, 0.25); border-radius: 999px;">
-                        <div id="ragasProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); border-radius: 999px; transition: width 0.35s ease;"></div>
-                    </div>
-                    <div id="ragasProgressHint" style="margin-top: 0.55rem; font-size: 0.82rem; color: var(--text-secondary);">서버 연결을 준비하고 있습니다.</div>
-                </div>
-                <div id="ragasResult" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
-                    <strong style="color: var(--accent-color); margin-bottom: 0.5rem; display: block;">🏆 RAGAS Evaluation Score</strong>
-                    <div style="display: flex; gap: 2rem; font-weight: 600;">
-                        <span id="ragasFaithfulness">Faithfulness: 0.0</span>
-                    </div>
-                    <div id="ragasDetails" style="margin-top: 0.75rem;"></div>
-                </div>
-            </div>
-
             <div class="card">
                 <div class="card-title">🔍 Top-K Retrieved Evidence Units (Grounded Context)</div>
                 <div class="retrieved-list" id="euList">
@@ -787,10 +734,9 @@
             window.dispatchEvent(new CustomEvent('pipeline-run-state', { detail }));
         };
 
+        // 전략 on/off UI는 파이프라인 다이어그램의 노드 스위치·프리셋이 담당한다.
         function toggleBm25() {
             useBm25 = !useBm25;
-            document.getElementById('btnBm25').className =
-                'strategy-btn' + (useBm25 ? ' active' : '');
             dispatchPipelineConfiguration();
         }
 
@@ -800,8 +746,7 @@
 
         function setStrategy(strategy) {
             currentStrategy = strategy;
-            document.getElementById('btnRoiRag').className = 'strategy-btn' + (strategy === 'roi_rag' ? ' active' : '');
-            document.getElementById('btnStb').className = 'strategy-btn' + (strategy === 'small_to_big' ? ' active' : '');
+            // Small-to-Big 파라미터는 해당 전략일 때만 Document Indexing 카드에 노출한다.
             document.getElementById('stbOptions').className = 'stb-options' + (strategy === 'small_to_big' ? '' : ' hidden');
             const buildBtn = document.getElementById('buildBtn');
             if (buildBtn && !buildBtn.disabled) {
@@ -1013,19 +958,25 @@
             executeQuery();
         }
 
-        let stepTimer1, stepTimer2, stepTimer3;
+        // 질의마다 RAGAS 평가가 자동으로 돌기 때문에, 평가가 끝나기 전에 다음
+        // 질의를 던지면 두 실행이 겹친다. 토큰을 올려 오래된 스트림이 새 답변
+        // 위에 점수를 덮어쓰지 못하게 막는다. (스트림 자체는 중단할 수 없다.)
+        let ragasRunToken = 0;
 
         async function executeQuery() {
             const query = document.getElementById('queryInput').value.trim();
-            const useCache = document.getElementById('useResponseCache').checked;
+            // 캐시 토글은 GUI에서 걷어냈다. 서버 기본값(RESPONSE_CACHE_DEFAULT)을 그대로 따른다.
+            const useCache = {{ 'true' if response_cache_default else 'false' }};
             if (!query) return;
 
             const btn = document.getElementById('queryBtn');
             const answerBox = document.getElementById('answerBox');
             const euList = document.getElementById('euList');
             const metricsBar = document.getElementById('metricsBar');
-            const stepper = document.getElementById('livePipelineStepper');
-            
+            // 질의가 성공했을 때만 RAGAS 평가를 자동으로 한 번 돌린다.
+            let autoEvaluate = false;
+
+            ragasRunToken += 1;
             document.getElementById('ragasResult').style.display = 'none';
             document.getElementById('ragasProgress').style.display = 'none';
             document.getElementById('btnEvaluate').innerHTML = '🎯 RAGAS 평가하기';
@@ -1036,7 +987,6 @@
             answerBox.innerHTML = "<span style='color: var(--text-secondary);'>Retrieving Evidence Units and generating grounded answer...</span>";
             euList.innerHTML = "";
             metricsBar.style.display = "none";
-            stepper.style.display = "flex";
             window.updatePipelineRunState({
                 phase: 'running',
                 query,
@@ -1046,45 +996,6 @@
                 ragas: null
             });
 
-            // Reset and animate pipeline stepper
-            clearTimeout(stepTimer1);
-            clearTimeout(stepTimer2);
-            clearTimeout(stepTimer3);
-
-            ['flowStep1', 'flowStep2', 'flowStep3', 'flowStep4'].forEach(id => {
-                const el = document.getElementById(id);
-                el.className = 'stepper-item';
-                el.style.borderColor = '';
-                el.style.color = '';
-            });
-
-            document.getElementById('flowStep1').className = 'stepper-item active';
-            document.getElementById('flowStep1').innerHTML = '⏳ 1️⃣ Embedding Query...';
-            document.getElementById('flowStep2').innerHTML = '⏸️ 2️⃣ FAISS Retrieval';
-            document.getElementById('flowStep3').innerHTML = '⏸️ 3️⃣ Entropy Filter';
-            document.getElementById('flowStep4').innerHTML = '⏸️ 4️⃣ Grounded LLM';
-
-            stepTimer1 = setTimeout(() => {
-                document.getElementById('flowStep1').className = 'stepper-item done';
-                document.getElementById('flowStep1').innerHTML = '✓ 1️⃣ Embedded (384-D)';
-                document.getElementById('flowStep2').className = 'stepper-item active';
-                document.getElementById('flowStep2').innerHTML = '⏳ 2️⃣ Searching FAISS Index...';
-            }, 300);
-
-            stepTimer2 = setTimeout(() => {
-                document.getElementById('flowStep2').className = 'stepper-item done';
-                document.getElementById('flowStep2').innerHTML = '✓ 2️⃣ Candidate EUs Retrieved';
-                document.getElementById('flowStep3').className = 'stepper-item active';
-                document.getElementById('flowStep3').innerHTML = '⏳ 3️⃣ Evaluating RE/DE Regimes...';
-            }, 650);
-
-            stepTimer3 = setTimeout(() => {
-                document.getElementById('flowStep3').className = 'stepper-item done';
-                document.getElementById('flowStep3').innerHTML = '✓ 3️⃣ Entropy Regimes Assigned';
-                document.getElementById('flowStep4').className = 'stepper-item active';
-                document.getElementById('flowStep4').innerHTML = '⏳ 4️⃣ LLM Generating Grounded Answer...';
-            }, 1000);
-
             try {
                 const res = await fetch('/api/query', {
                     method: 'POST',
@@ -1092,10 +1003,6 @@
                     body: JSON.stringify({ query, use_cache: useCache, chunking_strategy: currentStrategy, use_bm25: useBm25 })
                 });
                 const data = await parseJsonResponse(res);
-
-                clearTimeout(stepTimer1);
-                clearTimeout(stepTimer2);
-                clearTimeout(stepTimer3);
 
                 if (data.status === "success" && data.roi_rag) {
                     const roi = data.roi_rag;
@@ -1106,25 +1013,6 @@
                         errorNode: null,
                         metrics: { pipeline: roi.pipeline_metrics || {} }
                     });
-
-                    // Update Stepper with live precise metrics
-                    document.getElementById('flowStep1').className = 'stepper-item done';
-                    document.getElementById('flowStep1').innerHTML = '✓ 1️⃣ Embedded (384-D)';
-
-                    const euCount = roi.raw_contexts ? roi.raw_contexts.length : 0;
-                    document.getElementById('flowStep2').className = 'stepper-item done';
-                    document.getElementById('flowStep2').innerHTML = `✓ 2️⃣ FAISS Top-K (${euCount} EUs)`;
-
-                    const regimesUsed = roi.raw_contexts && roi.raw_contexts.length > 0
-                        ? Array.from(new Set(roi.raw_contexts.map(eu => eu.regime))).join(', ')
-                        : 'N/A';
-                    document.getElementById('flowStep3').className = 'stepper-item done';
-                    document.getElementById('flowStep3').innerHTML = `✓ 3️⃣ Regimes: [${regimesUsed}]`;
-
-                    document.getElementById('flowStep4').className = 'stepper-item done';
-                    document.getElementById('flowStep4').innerHTML = roi.cache_hit
-                        ? `✓ 4️⃣ Cached Grounded Answer (${roi.latency_ms} ms)`
-                        : `✓ 4️⃣ Grounded Synthesis (${roi.latency_ms} ms)`;
 
                     // Display metrics
                     document.getElementById('metricLatency').innerText = `⏱ Latency: ${roi.latency_ms} ms`;
@@ -1164,34 +1052,31 @@
                         answer: roi.answer,
                         contexts: roi.retrieved_contexts || []
                     };
+                    autoEvaluate = true;
 
                 } else {
                     answerBox.innerText = "Error: " + (data.detail || "Query execution failed.");
-                    document.getElementById('flowStep4').className = 'stepper-item active';
-                    document.getElementById('flowStep4').style.borderColor = '#ef4444';
-                    document.getElementById('flowStep4').style.color = '#ef4444';
-                    document.getElementById('flowStep4').innerHTML = '❌ 4️⃣ Pipeline Failed';
                     window.updatePipelineRunState({ phase: 'error', errorNode: 'llm' });
                 }
             } catch (e) {
-                clearTimeout(stepTimer1);
-                clearTimeout(stepTimer2);
-                clearTimeout(stepTimer3);
                 answerBox.innerText = "Query failed: " + e.message;
-                document.getElementById('flowStep4').className = 'stepper-item active';
-                document.getElementById('flowStep4').style.borderColor = '#ef4444';
-                document.getElementById('flowStep4').style.color = '#ef4444';
-                document.getElementById('flowStep4').innerHTML = '❌ 4️⃣ Pipeline Error';
                 window.updatePipelineRunState({ phase: 'error', errorNode: 'llm' });
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "Ask Query";
             }
+
+            // 답변이 그려진 뒤 RAGAS 평가를 1회 자동 실행한다.
+            // Ask Query 버튼은 이미 풀려 있으므로 평가 중에도 다시 질의할 수 있다.
+            if (autoEvaluate) {
+                await evaluateRagas({ auto: true });
+            }
         }
 
-        async function evaluateRagas() {
+        // auto=true 는 executeQuery 가 끝나고 자동으로 부르는 경우다.
+        async function evaluateRagas({ auto = false } = {}) {
             if (!window.lastQueryData) {
-                alert("먼저 질문을 통해 RAG 답변을 생성해주세요!");
+                if (!auto) alert("먼저 질문을 통해 RAG 답변을 생성해주세요!");
                 return;
             }
 
@@ -1203,6 +1088,9 @@
             const progressBar = document.getElementById('ragasProgressBar');
             const progressHint = document.getElementById('ragasProgressHint');
             const startedAt = performance.now();
+            const runToken = ++ragasRunToken;
+            // 새 질의가 시작되면 이 실행은 낡은 것이 되어 UI를 건드리지 않는다.
+            const isStale = () => runToken !== ragasRunToken;
             let latestProgress = 0;
             let latestStage = 'connecting';
 
@@ -1217,6 +1105,7 @@
             const RUNNING_STAGES = new Set(['generating_statements', 'judging_statements']);
 
             const updateElapsed = () => {
+                if (isStale()) return;
                 const seconds = Math.floor((performance.now() - startedAt) / 1000);
                 progressElapsed.textContent = seconds + '초 경과';
                 if (RUNNING_STAGES.has(latestStage)) {
@@ -1228,6 +1117,7 @@
             };
 
             const updateProgress = (event) => {
+                if (isStale()) return;
                 latestStage = event.stage || latestStage;
                 latestProgress = Number(event.progress ?? latestProgress);
                 const isGeminiRunning = RUNNING_STAGES.has(latestStage);
@@ -1340,6 +1230,8 @@
                     );
                 }
 
+                if (isStale()) return;
+
                 const completedSeconds =
                     finalData.elapsed_seconds ??
                     Math.round((performance.now() - startedAt) / 1000);
@@ -1423,9 +1315,14 @@
                         answer_relevancy: finalData.scores.answer_relevancy ?? null
                     }
                 });
+                // 완료되면 진행 바를 치우고 그 자리에 점수를 띄운다.
+                // 둘을 같이 두면 점수가 한 칸 아래로 밀려 화면 밖으로 나간다.
+                // (실패 시에는 사유가 진행 박스에 남아야 하므로 그대로 둔다.)
+                progressBox.style.display = 'none';
                 ragasResult.style.display = 'block';
                 btn.innerHTML = "✅ 평가 완료";
             } catch (e) {
+                if (isStale()) return;
                 latestProgress = -1;
                 latestStage = 'failed';
                 window.updatePipelineRunState({ ragasPhase: 'error' });
@@ -1438,9 +1335,13 @@
                 progressBar.style.width = '100%';
                 progressBar.style.background = '#ef4444';
                 btn.innerHTML = "❌ 평가 실패";
-                alert(
-                    "RAGAS 평가 중 오류가 발생했습니다: " + e.message
-                );
+                // 자동 실행은 질의마다 돌기 때문에 alert로 막지 않는다.
+                // 실패 사유는 위 진행 박스에 그대로 남는다.
+                if (!auto) {
+                    alert(
+                        "RAGAS 평가 중 오류가 발생했습니다: " + e.message
+                    );
+                }
             } finally {
                 clearInterval(elapsedTimer);
                 updateElapsed();
