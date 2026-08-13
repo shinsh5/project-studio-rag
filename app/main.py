@@ -8,6 +8,7 @@ import math
 import time
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 import sys
@@ -34,6 +35,9 @@ app = FastAPI(
 # Setup Jinja2 templates directory
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
 templates = Jinja2Templates(directory=templates_dir)
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Initialize pipeline
 roi_pipeline = get_roi_rag_pipeline()
@@ -43,6 +47,9 @@ class QueryRequest(BaseModel):
     query: str
     use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT
     chunking_strategy: str | None = None
+    # BM25 sentence selection is orthogonal to the chunking strategy, so it is a
+    # separate flag rather than a third strategy value. None falls back to config.
+    use_bm25: bool | None = None
 
 class BuildIndexRequest(BaseModel):
     text: str
@@ -60,6 +67,7 @@ async def read_root(request: Request):
         name="index.html",
         context={
             "llm_backend": config.LLM_BACKEND,
+            "ollama_model": config.OLLAMA_MODEL,
             "ragas_backend": "gemini",
             "response_cache_default": config.LLM_RESPONSE_CACHE_DEFAULT
         }
@@ -179,7 +187,11 @@ def execute_query(request: QueryRequest):
         config.CHUNKING_STRATEGY = request.chunking_strategy
 
     try:
-        res = roi_pipeline(request.query, use_cache=request.use_cache)
+        res = roi_pipeline(
+            request.query,
+            use_cache=request.use_cache,
+            use_bm25=request.use_bm25,
+        )
         return {
             "status": "success",
             "roi_rag": {
@@ -189,6 +201,9 @@ def execute_query(request: QueryRequest):
                 "latency_ms": res["latency_ms"],
                 "api_calls": res["api_calls"],
                 "tokens_used": res["tokens_used"],
+                "usage": res.get("usage", {}),
+                "bm25_evidence_selection": res.get("bm25_evidence_selection", False),
+                "pipeline_metrics": res.get("pipeline_metrics", {}),
                 "prompt": res["prompt"],
                 "cache_hit": res["cache_hit"]
             }

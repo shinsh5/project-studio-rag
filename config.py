@@ -75,6 +75,19 @@ TAU_HIGH = float(os.getenv("TAU_HIGH", 0.85))
 # Retrieval Configuration
 RETRIEVAL_K = int(os.getenv("RETRIEVAL_K", 3))
 
+# BM25 Sentence-Level Evidence Selection
+# Orthogonal to CHUNKING_STRATEGY: this trims the raw snippets a strategy already
+# selected, so it stacks on top of either roi_rag or small_to_big. EU summaries are
+# left untouched. Raw snippets are 82% of the evidence tokens at ~9.5 sentences per
+# segment, so keeping only the query-relevant ones is where compression pays.
+BM25_EVIDENCE_SELECTION = os.getenv("BM25_EVIDENCE_SELECTION", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+BM25_SENTENCES_PER_SEGMENT = int(os.getenv("BM25_SENTENCES_PER_SEGMENT", 3))
+
 # Performance Configuration
 MAX_SEGMENTS = None
 EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", 128))

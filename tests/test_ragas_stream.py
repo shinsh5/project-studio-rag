@@ -32,7 +32,9 @@ class TestQueryResponseCacheOption(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["roi_rag"]["cache_hit"])
-        pipeline.assert_called_once_with("Question?", use_cache=False)
+        pipeline.assert_called_once_with(
+            "Question?", use_cache=False, use_bm25=None
+        )
 
 class TestRagasProgressStream(unittest.TestCase):
     def test_streams_progress_events_before_result(self):
