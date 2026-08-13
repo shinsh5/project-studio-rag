@@ -40,12 +40,20 @@ GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.0"))
 GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "300"))
 # RAGAS answer relevancy generates this many candidate questions per answer and
 # averages their similarity to the real question. RAGAS forces temperature 0.3
-# whenever this is above 1, so the score varies between runs; a larger ensemble
-# trades API calls for a tighter spread. Measured over 5 repeats on one sample:
-# strictness 1 -> stdev 0.0000 (deterministic but single-sample biased),
-# 3 -> 0.0155, 5 -> 0.0077.
+# whenever this is above 1 (see BaseRagasLLM.get_temperature), so any value > 1
+# makes the score irreproducible regardless of GEMINI_TEMPERATURE.
+#
+# Kept at 1 because run-to-run noise otherwise swamps the effect being measured.
+# Repeated scoring of identical answers showed the spread grows with answer
+# length: short answers stayed fixed, but a 271-character answer ranged 0.779 to
+# 0.814 at strictness 5 -- 2.7x the 0.0129 difference we were trying to detect
+# between summarisation models. Strictness 1 measured a 0.0000 spread.
+#
+# The trade-off is single-sample bias: one generated question decides the score
+# instead of an ensemble. That bias applies equally to both arms of a paired
+# comparison, whereas run-to-run noise does not cancel.
 RAGAS_ANSWER_RELEVANCY_STRICTNESS = int(
-    os.getenv("RAGAS_ANSWER_RELEVANCY_STRICTNESS", "5")
+    os.getenv("RAGAS_ANSWER_RELEVANCY_STRICTNESS", "1")
 )
 
 # Embedding Configuration
