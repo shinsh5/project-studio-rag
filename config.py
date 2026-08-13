@@ -43,17 +43,16 @@ GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "300"))
 # whenever this is above 1 (see BaseRagasLLM.get_temperature), so any value > 1
 # makes the score irreproducible regardless of GEMINI_TEMPERATURE.
 #
-# Kept at 1 because run-to-run noise otherwise swamps the effect being measured.
-# Repeated scoring of identical answers showed the spread grows with answer
-# length: short answers stayed fixed, but a 271-character answer ranged 0.779 to
-# 0.814 at strictness 5 -- 2.7x the 0.0129 difference we were trying to detect
-# between summarisation models. Strictness 1 measured a 0.0000 spread.
+# Back at 5 to match the reference numbers this project is being compared
+# against. Strictness 1 is reproducible (stdev 0.0000) but one generated
+# question decides the score, and with only a handful of queries that
+# single-sample bias does not cancel between the two arms of a comparison.
+# The cost of 5 is run-to-run spread that grows with answer length: a
+# 271-character answer ranged 0.779 to 0.814 across repeats.
 #
-# The trade-off is single-sample bias: one generated question decides the score
-# instead of an ensemble. That bias applies equally to both arms of a paired
-# comparison, whereas run-to-run noise does not cancel.
+# Set this to 1 when you need a repeatable number rather than a comparable one.
 RAGAS_ANSWER_RELEVANCY_STRICTNESS = int(
-    os.getenv("RAGAS_ANSWER_RELEVANCY_STRICTNESS", "1")
+    os.getenv("RAGAS_ANSWER_RELEVANCY_STRICTNESS", "5")
 )
 
 # Embedding Configuration
@@ -78,6 +77,23 @@ AUTOMERGE_THRESHOLD = float(os.getenv("AUTOMERGE_THRESHOLD", 0.0))
 #   "all_segments" - send every leaf segment of the hit EU verbatim, no parent expansion.
 STB_RETRIEVAL_MODES = ("automerge", "all_segments")
 STB_RETRIEVAL_MODE = os.getenv("STB_RETRIEVAL_MODE", "automerge")
+
+# AutoMerge only. Several retrieved EUs often point at the same parent chunk. With
+# this on, the parent's text is emitted once and later EUs get a pointer line
+# instead; with it off, every EU carries its own full copy.
+#
+# Off by default because it is not neutral in a strategy comparison: it shrinks
+# only the Small-to-Big arm, never the plain ROI-RAG arm, which has no parent
+# expansion at all. Measured over 5 sample queries on the current index it cut
+# STB evidence by 27.6% (68,420 -> 49,503 chars) and on 2 of them left one of the
+# three EUs carrying no evidence text at all. Turn it on to save tokens once the
+# comparison is done.
+STB_PARENT_DEDUP = os.getenv("STB_PARENT_DEDUP", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 # Candidate Neighborhood Configuration
 NEIGHBORHOOD_K = int(os.getenv("NEIGHBORHOOD_K", 10))

@@ -69,8 +69,8 @@
   width: 150px;
   /*
    * 고정 높이. 핸들이 변의 중앙에 붙기 때문에 노드 높이가 제각각이면
-   * 연결선이 비스듬해진다. subtitle과 metric이 모두 두 줄로 접히고
-   * Dedup 안내문까지 붙는 최악의 경우를 기준으로 잡은 값이다.
+   * 연결선이 비스듬해진다. subtitle과 metric이 모두 두 줄로 접히는
+   * 최악의 경우를 기준으로 잡은 값이다.
    * JSX의 NODE_HEIGHT와 반드시 같아야 한다.
    */
   height: 172px;
@@ -201,13 +201,6 @@
   font-size: 11px;
   line-height: 1.25;
   word-break: break-word;
-}
-
-.pipeline-node__auto {
-  margin-top: 6px;
-  color: #64748b;
-  font-size: 10px;
-  text-align: right;
 }
 
 .pipeline-handle {

@@ -139,14 +139,18 @@ def _stb_automerge_context(
     leaf_to_parent: list[int],
     trim,
     seen_parents: set[int],
+    dedup: bool = False,
 ) -> tuple[str, int, int]:
     """
     AutoMerge mode: replace the EU's leaves with the parent chunks they belong to,
     keeping only parents that hold at least AUTOMERGE_THRESHOLD of the EU's leaves.
     Falls back to raw leaf text when the threshold excludes every parent.
 
-    A parent can be reached from several retrieved EUs, so its full text is emitted
-    only once; later EUs keep their summary and point at the earlier copy.
+    A parent can be reached from several retrieved EUs. With dedup on, its text is
+    emitted once and later EUs point at the earlier copy; with it off (the default,
+    see config.STB_PARENT_DEDUP) every EU carries its own full copy.
+
+    seen_parents is updated in both modes so the unique-parent metric stays honest.
 
     Returns (body, parent_candidates, duplicates_removed).
     """
@@ -162,7 +166,9 @@ def _stb_automerge_context(
     candidates = [
         pid for pid in sorted(threshold_parents) if 0 <= pid < len(parent_chunks)
     ]
-    selected_parents, duplicates = _deduplicate_parent_ids(candidates, seen_parents)
+    fresh, duplicates = _deduplicate_parent_ids(candidates, seen_parents)
+    selected_parents = fresh if dedup else candidates
+    removed = duplicates if dedup else 0
 
     if selected_parents:
         parent_texts = "\n\n".join([
@@ -177,7 +183,7 @@ def _stb_automerge_context(
         raw_text = "\n".join([f"- {trim(seg)}" for seg in supporting_segs])
         body = f"Top Original Snippets:\n{raw_text}"
 
-    return body, len(candidates), duplicates
+    return body, len(candidates), removed
 
 
 def _stb_all_segments_context(eu: dict, segments: list[str], trim) -> str:
@@ -319,7 +325,7 @@ def get_roi_rag_pipeline():
                 else:
                     body, candidates, duplicates = _stb_automerge_context(
                         eu, segments, parent_chunks, leaf_to_parent,
-                        _trim, used_parent_ids,
+                        _trim, used_parent_ids, config.STB_PARENT_DEDUP,
                     )
                     parent_candidates += candidates
                     parent_duplicates_removed += duplicates
@@ -417,6 +423,7 @@ def get_roi_rag_pipeline():
                 "parent_candidates": parent_candidates,
                 "unique_parents": len(used_parent_ids),
                 "parent_duplicates_removed": parent_duplicates_removed,
+                "parent_dedup_enabled": bool(config.STB_PARENT_DEDUP),
                 "bm25_enabled": bool(use_bm25),
                 "bm25_sentences_before": bm25_sentences_before,
                 "bm25_sentences_after": bm25_sentences_after,

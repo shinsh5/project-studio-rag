@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -581,8 +581,8 @@
             </div>
             <div class="sample-queries">
                 <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-color);">⚡ Redundant Dataset Samples:</span>
-                <button class="sample-badge" onclick="setAndRunQuery('What happened to Dallas Police officer Rogelio Santander at the Home Depot?')">🚔 Dallas Police Shooting</button>
                 <button class="sample-badge" onclick="setAndRunQuery('Where was the stolen Picasso painting La Coiffeuse found after being shipped from Belgium?')">🎨 Picasso Painting Recovery</button>
+                <button class="sample-badge" onclick="setAndRunQuery('Why did Microsoft acquire Nokia cell phone business?')">📱 Microsoft &amp; Nokia Deal</button>
             </div>
 
             <div class="answer-box" id="answerBox">Type a query above to see the grounded ROI-RAG answer and retrieved Evidence Units.</div>
@@ -592,17 +592,17 @@
                     <span id="metricCalls">🔌 API Calls: 0</span>
                     <span id="metricTokens">🪙 Tokens: 0</span>
                 </div>
-                <button class="sample-badge" id="btnEvaluate" style="border-color: var(--accent-color); color: var(--accent-color);" onclick="evaluateRagas()">🎯 RAGAS 평가하기</button>
+                <button class="sample-badge" id="btnEvaluate" style="border-color: var(--accent-color); color: var(--accent-color);" onclick="evaluateRagas()">🎯 Evaluate with RAGAS</button>
             </div>
             <div id="ragasProgress" role="status" aria-live="polite" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px;">
                 <div style="display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.6rem;">
-                    <strong id="ragasProgressStage" style="color: var(--accent-color);">평가 준비 중</strong>
-                    <span id="ragasProgressElapsed" style="font-size: 0.85rem; color: var(--text-secondary);">0초</span>
+                    <strong id="ragasProgressStage" style="color: var(--accent-color);">Preparing evaluation</strong>
+                    <span id="ragasProgressElapsed" style="font-size: 0.85rem; color: var(--text-secondary);">0s</span>
                 </div>
                 <div style="height: 8px; overflow: hidden; position: relative; background: rgba(148, 163, 184, 0.25); border-radius: 999px;">
                     <div id="ragasProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #3b82f6, #10b981); border-radius: 999px; transition: width 0.35s ease;"></div>
                 </div>
-                <div id="ragasProgressHint" style="margin-top: 0.55rem; font-size: 0.82rem; color: var(--text-secondary);">서버 연결을 준비하고 있습니다.</div>
+                <div id="ragasProgressHint" style="margin-top: 0.55rem; font-size: 0.82rem; color: var(--text-secondary);">Connecting to the server.</div>
             </div>
             <div id="ragasResult" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px;">
                 <strong style="color: var(--accent-color); margin-bottom: 0.5rem; display: block;">🏆 RAGAS Evaluation Score</strong>
@@ -638,12 +638,12 @@
                         <span class="param-label">Leaves per Parent</span>
                         <input class="param-input" type="number" id="stbLeavesPerParent" value="3" min="1" max="10">
                     </div>
-                    <div class="param-divider debug-only">Retrieval (질의 시 적용 · 재빌드 불필요)</div>
+                    <div class="param-divider debug-only">Retrieval (query-time · no rebuild)</div>
                     <div class="param-row debug-only">
                         <span class="param-label">Retrieval Mode</span>
                         <select class="param-input" id="stbRetrievalMode" onchange="onStbRetrievalModeChange()">
-                            <option value="automerge">1. AutoMerge (parent 선택)</option>
-                            <option value="all_segments">2. Segment 전체선택</option>
+                            <option value="automerge">1. AutoMerge (select parents)</option>
+                            <option value="all_segments">2. All segments</option>
                         </select>
                     </div>
                     <div class="param-row debug-only" id="stbAutoMergeRow">
@@ -696,28 +696,28 @@
             <div class="card">
                 <div class="card-title">🏗️ ROI-RAG Offline Indexing Flow</div>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;">
-                    대용량 문서나 텍스트를 인덱싱할 때 거치는 4단계 전처리 및 증거 단락(EU) 구성 과정입니다.
+                    The four preprocessing steps that turn raw text into Evidence Units at index time.
                 </p>
                 <div class="flow-diagram-offline">
                     <div class="flow-step-card" style="padding: 0.75rem;">
                         <span class="flow-step-num">📦 Step 1</span>
                         <div class="flow-step-title" style="font-size: 0.85rem;">Document Chunking</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;">텍스트 분할 및 불필요 공백·노이즈 정제</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">Split into segments; strip whitespace and noise</div>
                     </div>
                     <div class="flow-step-card" style="padding: 0.75rem;">
                         <span class="flow-step-num">🔤 Step 2</span>
                         <div class="flow-step-title" style="font-size: 0.85rem;">Dense Embedding</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;"><code style="color: #60a5fa;">all-MiniLM-L6-v2</code>로 384차원 의미 벡터 변환</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;"><code style="color: #60a5fa;">all-MiniLM-L6-v2</code> encodes each segment into a 384-D vector</div>
                     </div>
                     <div class="flow-step-card" style="padding: 0.75rem;">
                         <span class="flow-step-num">🕸️ Step 3</span>
                         <div class="flow-step-title" style="font-size: 0.85rem;">FAISS Graph Index</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;">벡터 인덱싱 구축 및 후보 이웃 그래프 구축</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">Build the vector index and the candidate neighbor graph</div>
                     </div>
                     <div class="flow-step-card" style="padding: 0.75rem;">
                         <span class="flow-step-num">⚖️ Step 4</span>
                         <div class="flow-step-title" style="font-size: 0.85rem;">Entropy EU Construction</div>
-                        <div class="flow-step-desc" style="font-size: 0.75rem;">중복/다양성 엔트로피 기반 Evidence Unit 압축</div>
+                        <div class="flow-step-desc" style="font-size: 0.75rem;">Compress into Evidence Units by redundancy/diversity entropy</div>
                     </div>
                 </div>
             </div>
@@ -744,12 +744,12 @@
         async function parseJsonResponse(res) {
             const text = await res.text();
             if (text.trim().startsWith('<') || text.includes('Bypass tunnel password') || text.includes('Click to Continue')) {
-                throw new Error("loca.lt 보안 안내 창(Friendly Reminder)이 감지되었습니다! 브라우저 새 탭에서 https://project-studio-rag.loca.lt 로 접속하여 화면의 파란색 'Click to Continue' 버튼을 한 번 눌러주시거나 접속 IP를 입력하신 뒤 다시 버튼을 눌러주세요.");
+                throw new Error("loca.lt Friendly Reminder page detected. Open https://project-studio-rag.loca.lt in a new tab, click the blue 'Click to Continue' button (or enter the tunnel IP), then retry.");
             }
             try {
                 return JSON.parse(text);
             } catch (e) {
-                throw new Error("서버 응답 파싱 오류 (응답 내용: " + text.substring(0, 50) + "...)");
+                throw new Error("Failed to parse the server response (body: " + text.substring(0, 50) + "...)");
             }
         }
 
@@ -1065,7 +1065,7 @@
             ragasRunToken += 1;
             document.getElementById('ragasResult').style.display = 'none';
             document.getElementById('ragasProgress').style.display = 'none';
-            document.getElementById('btnEvaluate').innerHTML = '🎯 RAGAS 평가하기';
+            document.getElementById('btnEvaluate').innerHTML = '🎯 Evaluate with RAGAS';
             document.getElementById('btnEvaluate').disabled = false;
 
             btn.disabled = true;
@@ -1168,7 +1168,7 @@
         // auto=true 는 executeQuery 가 끝나고 자동으로 부르는 경우다.
         async function evaluateRagas({ auto = false } = {}) {
             if (!window.lastQueryData) {
-                if (!auto) alert("먼저 질문을 통해 RAG 답변을 생성해주세요!");
+                if (!auto) alert("Run a query first so there is an answer to evaluate.");
                 return;
             }
 
@@ -1187,11 +1187,11 @@
             let latestStage = 'connecting';
 
             const stageLabels = {
-                validating_input: '평가 준비: 입력 확인 중',
-                generating_statements: 'RAGAS가 답변을 statement로 분해하는 중',
-                judging_statements: 'Gemini가 statement를 판정하는 중',
-                calculating_score: 'Faithfulness 점수 계산 중',
-                completed: '평가 완료'
+                validating_input: 'Preparing: validating input',
+                generating_statements: 'RAGAS is breaking the answer into statements',
+                judging_statements: 'Gemini is judging the statements',
+                calculating_score: 'Computing the faithfulness score',
+                completed: 'Evaluation complete'
             };
 
             const RUNNING_STAGES = new Set(['generating_statements', 'judging_statements']);
@@ -1199,12 +1199,12 @@
             const updateElapsed = () => {
                 if (isStale()) return;
                 const seconds = Math.floor((performance.now() - startedAt) / 1000);
-                progressElapsed.textContent = seconds + '초 경과';
+                progressElapsed.textContent = seconds + 's elapsed';
                 if (RUNNING_STAGES.has(latestStage)) {
                     progressHint.textContent =
-                        'Gemini가 RAGAS의 statement 분해·판정 프롬프트를 실행 중입니다. ' +
-                        '내부 진행률은 제공되지 않으며 현재 ' +
-                        seconds + '초 경과했습니다.';
+                        'Gemini is running the RAGAS statement and judgement prompts. ' +
+                        'No internal progress is reported; ' +
+                        seconds + 's elapsed so far.';
                 }
             };
 
@@ -1227,15 +1227,15 @@
                 progressStage.textContent =
                     stageLabels[latestStage] ||
                     event.message ||
-                    '평가 진행 중';
+                    'Evaluation in progress';
                 progressHint.textContent = isGeminiRunning
-                    ? 'Gemini가 RAGAS의 statement 분해·판정 프롬프트를 실행합니다. 내부 진행률은 제공되지 않습니다.'
-                    : (event.message || '평가를 진행하고 있습니다.');
+                    ? 'Gemini runs the RAGAS statement and judgement prompts. No internal progress is reported.'
+                    : (event.message || 'Evaluation is running.');
             };
 
             window.updatePipelineRunState({ ragasPhase: 'running', ragas: null });
             btn.disabled = true;
-            btn.innerHTML = "⏳ RAGAS 평가 중...";
+            btn.innerHTML = "⏳ Evaluating...";
             ragasResult.style.display = 'none';
             progressBox.style.display = 'block';
             progressBox.style.borderColor = 'rgba(59, 130, 246, 0.3)';
@@ -1244,9 +1244,9 @@
             progressBar.classList.remove('indeterminate');
             progressBar.style.transform = 'none';
             progressBar.style.width = '0%';
-            progressStage.textContent = '서버 연결 중';
-            progressHint.textContent = '진행 이벤트 스트림을 연결하고 있습니다.';
-            progressElapsed.textContent = '0초 경과';
+            progressStage.textContent = 'Connecting to server';
+            progressHint.textContent = 'Opening the progress event stream.';
+            progressElapsed.textContent = '0s elapsed';
 
             const elapsedTimer = setInterval(updateElapsed, 1000);
 
@@ -1266,7 +1266,7 @@
                 }
                 if (!res.body) {
                     throw new Error(
-                        '브라우저가 스트리밍 응답을 지원하지 않습니다.'
+                        'This browser does not support streaming responses.'
                     );
                 }
 
@@ -1283,7 +1283,7 @@
                     } else if (event.type === 'error') {
                         throw new Error(
                             event.detail ||
-                            '평가 스트림에서 오류가 발생했습니다.'
+                            'The evaluation stream reported an error.'
                         );
                     }
                 };
@@ -1318,7 +1318,7 @@
                     !finalData.scores
                 ) {
                     throw new Error(
-                        '평가 결과 없이 스트림이 종료되었습니다.'
+                        'The stream ended without a result.'
                     );
                 }
 
@@ -1331,7 +1331,7 @@
                     stage: 'completed',
                     progress: 100,
                     message:
-                        completedSeconds + '초 만에 평가가 완료되었습니다.'
+                        'Evaluation finished in ' + completedSeconds + 's.'
                 });
 
                 const scoreParts = [
@@ -1372,7 +1372,7 @@
                         'font-size: 0.8rem; color: var(--text-secondary); ' +
                         'margin-bottom: 0.75rem; line-height: 1.5;';
                     note.textContent =
-                        'Answer Relevancy 실패: ' +
+                        'Answer Relevancy failed: ' +
                         details.answer_relevancy_error;
                     detailsBox.appendChild(note);
                 }
@@ -1412,7 +1412,7 @@
                 // (실패 시에는 사유가 진행 박스에 남아야 하므로 그대로 둔다.)
                 progressBox.style.display = 'none';
                 ragasResult.style.display = 'block';
-                btn.innerHTML = "✅ 평가 완료";
+                btn.innerHTML = "✅ Evaluation complete";
             } catch (e) {
                 if (isStale()) return;
                 latestProgress = -1;
@@ -1420,18 +1420,18 @@
                 window.updatePipelineRunState({ ragasPhase: 'error' });
                 progressBar.classList.remove('indeterminate');
                 progressBar.style.transform = 'none';
-                progressStage.textContent = '평가 실패';
+                progressStage.textContent = 'Evaluation failed';
                 progressHint.textContent = e.message;
                 progressBox.style.borderColor =
                     'rgba(239, 68, 68, 0.45)';
                 progressBar.style.width = '100%';
                 progressBar.style.background = '#ef4444';
-                btn.innerHTML = "❌ 평가 실패";
+                btn.innerHTML = "❌ Evaluation failed";
                 // 자동 실행은 질의마다 돌기 때문에 alert로 막지 않는다.
                 // 실패 사유는 위 진행 박스에 그대로 남는다.
                 if (!auto) {
                     alert(
-                        "RAGAS 평가 중 오류가 발생했습니다: " + e.message
+                        "RAGAS evaluation error: " + e.message
                     );
                 }
             } finally {

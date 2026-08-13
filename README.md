@@ -145,10 +145,10 @@ npm run build
 그래프에는 전체 실행 순서가 항상 표시됩니다.
 
 ```text
-Query → Embedding → ROI-RAG → Small-to-Big → Parent Dedup → BM25 → Prompt Builder → LLM → RAGAS
+Query → Embedding → EU Retrieval → Small-to-Big → BM25 → Prompt Builder → LLM → RAGAS
 ```
 
-기본 구성에서는 ROI-RAG만 활성화되고 Small-to-Big, Parent Dedup, BM25는 bypass됩니다. 상단 프리셋 또는 각 노드의 스위치로 `ROI-RAG`, `ROI-RAG + STB`, `ROI-RAG + BM25`, `ROI-RAG + STB + BM25` 구성을 선택할 수 있습니다.
+기본 구성에서는 ROI-RAG만 활성화되고 Small-to-Big과 BM25는 bypass됩니다. 상단 프리셋으로 `ROI-RAG`, `+ Small-to-Big`, `+ BM25`(= STB + BM25) 구성을 선택할 수 있습니다.
 
 ### 7. 웹 서버 실행
 

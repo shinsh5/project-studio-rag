@@ -17,15 +17,16 @@ const NODE_GAP_Y = 24;
 const COLUMNS = 3;
 
 const PIPELINE_STEPS = [
-  { id: 'query', title: 'Query', subtitle: '사용자 질문', icon: 'Q' },
+  { id: 'query', title: 'Query', subtitle: 'User question', icon: 'Q' },
   { id: 'embedding', title: 'Query Embedding', subtitle: 'MiniLM · 384-D', icon: 'E' },
-  { id: 'roi', title: 'ROI-RAG', subtitle: 'FAISS Top-K Evidence Units', icon: 'R', core: true },
-  { id: 'stb', title: 'Small-to-Big', subtitle: 'Leaf → Parent 확장', icon: 'S', optional: true },
-  { id: 'dedup', title: 'Parent Dedup', subtitle: '중복 Parent 제거', icon: 'D', dependent: true },
-  { id: 'bm25', title: 'BM25', subtitle: '문장 단위 근거 압축', icon: 'B', optional: true },
-  { id: 'prompt', title: 'Prompt Builder', subtitle: 'Grounded context 조립', icon: 'P' },
-  { id: 'llm', title: 'LLM Generation', subtitle: '로컬 Ollama', icon: 'L' },
-  { id: 'ragas', title: 'RAGAS', subtitle: 'Gemini 평가', icon: 'G' },
+  // ROI-RAG 는 파이프라인 전체의 이름이라 노드 제목으로는 쓰지 않는다.
+  // 이 단계가 하는 일은 엔트로피로 구성해 둔 EU 를 FAISS 로 꺼내오는 것이다.
+  { id: 'roi', title: 'EU Retrieval', subtitle: 'Entropy EUs · FAISS Top-K', icon: 'R', core: true },
+  { id: 'stb', title: 'Small-to-Big', subtitle: 'Leaf → Parent expansion', icon: 'S', optional: true },
+  { id: 'bm25', title: 'BM25', subtitle: 'Sentence-level evidence trim', icon: 'B', optional: true },
+  { id: 'prompt', title: 'Prompt Builder', subtitle: 'Grounded context assembly', icon: 'P' },
+  { id: 'llm', title: 'LLM Generation', subtitle: 'Local Ollama', icon: 'L' },
+  { id: 'ragas', title: 'RAGAS', subtitle: 'Gemini evaluation', icon: 'G' },
 ];
 
 /*
@@ -86,7 +87,6 @@ const PipelineNode = memo(({ data }) => (
     <div className="pipeline-node__title">{data.title}</div>
     <div className="pipeline-node__subtitle">{data.subtitle}</div>
     {data.metric && <div className="pipeline-node__metric">{data.metric}</div>}
-    {data.id === 'dedup' && <div className="pipeline-node__auto">STB와 자동 연동</div>}
     <Handle type="source" position={data.sourcePosition} className="pipeline-handle" />
   </div>
 ));
@@ -99,27 +99,23 @@ function metricFor(stepId, state) {
   const ragas = state.ragas || {};
   switch (stepId) {
     case 'query':
-      return state.query ? `${state.query.length} chars` : '질문 대기';
+      return state.query ? `${state.query.length} chars` : 'Awaiting question';
     case 'embedding':
       return pipeline.embedding_dimension ? `${pipeline.embedding_dimension}-D vector` : 'all-MiniLM-L6-v2';
     case 'roi':
       return pipeline.retrieved_eus != null ? `${pipeline.retrieved_eus} EUs retrieved` : 'Top-K = 3';
     case 'stb':
-      return pipeline.expanded_parents != null ? `${pipeline.expanded_parents} parents expanded` : '선택 기능';
-    case 'dedup':
-      return pipeline.unique_parents != null
-        ? `${pipeline.parent_duplicates_removed} removed · ${pipeline.unique_parents} unique`
-        : 'STB 활성화 시 실행';
+      return pipeline.expanded_parents != null ? `${pipeline.expanded_parents} parents expanded` : 'Optional stage';
     case 'bm25':
-      if (pipeline.bm25_sentences_before == null) return '선택 기능';
+      if (pipeline.bm25_sentences_before == null) return 'Optional stage';
       return `${pipeline.bm25_sentences_before} → ${pipeline.bm25_sentences_after} sentences`;
     case 'prompt':
-      return pipeline.prompt_chars != null ? `${pipeline.prompt_chars.toLocaleString()} chars` : '근거 프롬프트';
+      return pipeline.prompt_chars != null ? `${pipeline.prompt_chars.toLocaleString()} chars` : 'Grounded prompt';
     case 'llm':
       if (pipeline.latency_ms == null) return state.llmModel || 'Ollama';
       return `${pipeline.latency_ms.toLocaleString()} ms${pipeline.cache_hit ? ' · cache' : ''}`;
     case 'ragas':
-      if (ragas.faithfulness == null) return '평가 버튼으로 실행';
+      if (ragas.faithfulness == null) return 'Run from the RAGAS button';
       return `F ${ragas.faithfulness.toFixed(4)}${ragas.answer_relevancy == null ? '' : ` · AR ${ragas.answer_relevancy.toFixed(4)}`}`;
     default:
       return '';
@@ -132,7 +128,6 @@ function resolveStatus(stepId, state) {
     if (!state.stbEnabled) return 'bypassed';
     if (state.stbAvailable === false) return 'unavailable';
   }
-  if (stepId === 'dedup' && !state.stbEnabled) return 'bypassed';
   if (stepId === 'bm25' && !state.bm25Enabled) return 'bypassed';
   if (stepId === 'ragas') {
     if (state.ragasPhase === 'running') return 'running';
@@ -141,7 +136,7 @@ function resolveStatus(stepId, state) {
     return 'idle';
   }
   if (state.phase === 'running') {
-    const runningOrder = ['query', 'embedding', 'roi', 'stb', 'dedup', 'bm25', 'prompt', 'llm'];
+    const runningOrder = ['query', 'embedding', 'roi', 'stb', 'bm25', 'prompt', 'llm'];
     const current = runningOrder.indexOf(state.activeNode);
     const index = runningOrder.indexOf(stepId);
     if (index >= 0 && index < current) return 'completed';
@@ -149,13 +144,9 @@ function resolveStatus(stepId, state) {
     return stepId === 'roi' ? 'active' : 'idle';
   }
   if (state.phase === 'completed' && stepId !== 'ragas') {
-    return stepId === 'stb' && !state.stbEnabled
-      ? 'bypassed'
-      : stepId === 'dedup' && !state.stbEnabled
-        ? 'bypassed'
-        : stepId === 'bm25' && !state.bm25Enabled
-          ? 'bypassed'
-          : 'completed';
+    if (stepId === 'stb' && !state.stbEnabled) return 'bypassed';
+    if (stepId === 'bm25' && !state.bm25Enabled) return 'bypassed';
+    return 'completed';
   }
   return stepId === 'roi' ? 'active' : 'idle';
 }
@@ -215,7 +206,7 @@ function PipelineFlow() {
   useEffect(() => {
     if (state.phase !== 'running') return undefined;
     const order = ['embedding', 'roi'];
-    if (state.stbEnabled) order.push('stb', 'dedup');
+    if (state.stbEnabled) order.push('stb');
     if (state.bm25Enabled) order.push('bm25');
     order.push('prompt', 'llm');
     let index = 0;
@@ -292,9 +283,9 @@ function PipelineFlow() {
       <div className="pipeline-flow-toolbar">
         <div>
           <div className="pipeline-flow-kicker">PIPELINE CONFIGURATION</div>
-          <div className="pipeline-flow-help">전체 모듈을 표시하고 선택 기능은 bypass합니다.</div>
+          <div className="pipeline-flow-help">Every stage is shown; optional ones are bypassed.</div>
         </div>
-        <div className="pipeline-presets" role="group" aria-label="파이프라인 프리셋">
+        <div className="pipeline-presets" role="group" aria-label="Pipeline presets">
           {PRESETS.map((preset) => (
             <button
               type="button"
@@ -339,7 +330,7 @@ function PipelineFlow() {
         <span><i className="legend-running" />Running</span>
         <span><i className="legend-done" />Done</span>
         <span><i className="legend-bypassed" />Bypassed</span>
-        <span className="pipeline-flow-note">실행 순서와 배치는 고정이며, 선택 기능만 스위치나 프리셋으로 켜고 끕니다.</span>
+        <span className="pipeline-flow-note">Order and layout are fixed; presets toggle the optional stages.</span>
       </div>
     </div>
   );

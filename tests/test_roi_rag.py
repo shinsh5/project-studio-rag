@@ -100,10 +100,10 @@ class TestStbRetrievalModes(unittest.TestCase):
         """BM25 선별을 끈 상태. 이 테스트는 컨텍스트 구성만 본다."""
         return text
 
-    def _automerge(self, seen=None):
+    def _automerge(self, seen=None, dedup=False):
         body, _candidates, _duplicates = roi_rag._stb_automerge_context(
             self.eu, self.segments, self.parent_chunks, self.leaf_to_parent,
-            self._no_trim, set() if seen is None else seen,
+            self._no_trim, set() if seen is None else seen, dedup,
         )
         return body
 
@@ -142,14 +142,37 @@ class TestStbRetrievalModes(unittest.TestCase):
             merged = self._automerge()
         self.assertLess(len(self._all_segments()), len(merged))
 
-    def test_automerge_emits_a_shared_parent_only_once(self):
+    def test_dedup_on_emits_a_shared_parent_only_once(self):
+        seen = set()
+        with patch.object(config, "AUTOMERGE_THRESHOLD", 0.0):
+            first = self._automerge(seen, dedup=True)
+            second = self._automerge(seen, dedup=True)
+        self.assertIn("[Parent Chunk #0]", first)
+        self.assertNotIn("[Parent Chunk", second)
+        self.assertIn("already included above", second)
+
+    def test_dedup_off_repeats_the_parent_for_every_eu(self):
+        # 기본 동작. 중복 제거는 STB 쪽 근거만 줄여 전략 비교를 왜곡한다.
         seen = set()
         with patch.object(config, "AUTOMERGE_THRESHOLD", 0.0):
             first = self._automerge(seen)
             second = self._automerge(seen)
-        self.assertIn("[Parent Chunk #0]", first)
-        self.assertNotIn("[Parent Chunk", second)
-        self.assertIn("already included above", second)
+        self.assertEqual(first, second)
+        self.assertIn("[Parent Chunk #0]", second)
+        self.assertNotIn("already included above", second)
+
+    def test_dedup_off_still_reports_duplicates_as_not_removed(self):
+        seen = set()
+        with patch.object(config, "AUTOMERGE_THRESHOLD", 0.0):
+            self._automerge(seen)
+            _body, candidates, removed = roi_rag._stb_automerge_context(
+                self.eu, self.segments, self.parent_chunks, self.leaf_to_parent,
+                self._no_trim, seen, False,
+            )
+        self.assertEqual(candidates, 2)
+        self.assertEqual(removed, 0)
+        # seen 은 두 모드 모두 갱신되어야 unique_parents 지표가 맞는다.
+        self.assertEqual(seen, {0, 1})
 
     def test_resolve_mode_defaults_and_rejects_unknown(self):
         with patch.object(config, "STB_RETRIEVAL_MODE", "all_segments"):
