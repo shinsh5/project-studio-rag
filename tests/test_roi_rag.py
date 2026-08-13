@@ -83,6 +83,86 @@ class TestParentDeduplication(unittest.TestCase):
         self.assertEqual(second_duplicates, 2)
         self.assertEqual(seen, {2, 3, 4})
 
+
+class TestStbRetrievalModes(unittest.TestCase):
+    """Small-to-Big offers two query-time context strategies over the same index."""
+
+    def setUp(self):
+        # 2 parents x 3 leaves; the EU hits one leaf in each parent.
+        self.segments = [f"leaf-{i}" for i in range(6)]
+        self.parent_chunks = ["leaf-0 leaf-1 leaf-2", "leaf-3 leaf-4 leaf-5"]
+        self.leaf_to_parent = [0, 0, 0, 1, 1, 1]
+        self.eu = {"eu_id": 0, "segment_indices": [4, 0], "re": 0.5, "de": 0.5,
+                   "regime": "HIGH", "summary": "s"}
+
+    @staticmethod
+    def _no_trim(text):
+        """BM25 선별을 끈 상태. 이 테스트는 컨텍스트 구성만 본다."""
+        return text
+
+    def _automerge(self, seen=None):
+        body, _candidates, _duplicates = roi_rag._stb_automerge_context(
+            self.eu, self.segments, self.parent_chunks, self.leaf_to_parent,
+            self._no_trim, set() if seen is None else seen,
+        )
+        return body
+
+    def _all_segments(self, eu=None):
+        return roi_rag._stb_all_segments_context(
+            eu or self.eu, self.segments, self._no_trim
+        )
+
+    def test_automerge_threshold_zero_keeps_every_touched_parent(self):
+        with patch.object(config, "AUTOMERGE_THRESHOLD", 0.0):
+            ctx = self._automerge()
+        self.assertIn("[Parent Chunk #0]", ctx)
+        self.assertIn("[Parent Chunk #1]", ctx)
+        # Parent expansion pulls in neighbouring leaves not present in the EU.
+        self.assertIn("leaf-2", ctx)
+
+    def test_automerge_threshold_falls_back_to_leaves_when_all_parents_excluded(self):
+        # Each parent holds 1 of 2 leaves (0.5), so 0.9 excludes both.
+        with patch.object(config, "AUTOMERGE_THRESHOLD", 0.9):
+            ctx = self._automerge()
+        self.assertNotIn("[Parent Chunk", ctx)
+        self.assertIn("Top Original Snippets", ctx)
+        self.assertNotIn("leaf-2", ctx)
+
+    def test_all_segments_sends_every_eu_leaf_in_document_order(self):
+        ctx = self._all_segments()
+        self.assertIn("All EU Segments", ctx)
+        self.assertNotIn("[Parent Chunk", ctx)
+        # Stored order is [4, 0]; output must be sorted to read continuously.
+        self.assertLess(ctx.index("leaf-0"), ctx.index("leaf-4"))
+        # Only the EU's own leaves, no parent neighbours.
+        self.assertNotIn("leaf-2", ctx)
+
+    def test_all_segments_is_smaller_than_automerge_expansion(self):
+        with patch.object(config, "AUTOMERGE_THRESHOLD", 0.0):
+            merged = self._automerge()
+        self.assertLess(len(self._all_segments()), len(merged))
+
+    def test_automerge_emits_a_shared_parent_only_once(self):
+        seen = set()
+        with patch.object(config, "AUTOMERGE_THRESHOLD", 0.0):
+            first = self._automerge(seen)
+            second = self._automerge(seen)
+        self.assertIn("[Parent Chunk #0]", first)
+        self.assertNotIn("[Parent Chunk", second)
+        self.assertIn("already included above", second)
+
+    def test_resolve_mode_defaults_and_rejects_unknown(self):
+        with patch.object(config, "STB_RETRIEVAL_MODE", "all_segments"):
+            self.assertEqual(roi_rag.resolve_stb_retrieval_mode(None), "all_segments")
+            self.assertEqual(
+                roi_rag.resolve_stb_retrieval_mode("automerge"), "automerge"
+            )
+        self.assertEqual(roi_rag.resolve_stb_retrieval_mode("bogus"), "automerge")
+
+    def test_out_of_range_segment_indices_are_ignored(self):
+        eu = {**self.eu, "segment_indices": [0, 99]}
+        self.assertNotIn("99", self._all_segments(eu))
+
 class TestLlamaResponseCache(unittest.TestCase):
     def setUp(self):
         roi_rag.clear_response_cache()

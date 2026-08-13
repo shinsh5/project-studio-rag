@@ -50,6 +50,9 @@ class QueryRequest(BaseModel):
     # BM25 sentence selection is orthogonal to the chunking strategy, so it is a
     # separate flag rather than a third strategy value. None falls back to config.
     use_bm25: bool | None = None
+    # Small-to-Big only: "automerge" | "all_segments". Applied per query, no rebuild.
+    stb_retrieval_mode: str | None = None
+    automerge_threshold: float | None = None
 
 class BuildIndexRequest(BaseModel):
     text: str
@@ -57,7 +60,6 @@ class BuildIndexRequest(BaseModel):
     stb_leaf_size: int = 80
     stb_leaf_overlap: int = 20
     stb_leaves_per_parent: int = 3
-    automerge_threshold: float = 0.0
 
 # Endpoints
 @app.get("/", response_class=HTMLResponse)
@@ -88,6 +90,7 @@ def get_current_index(strategy: str | None = None):
         return {
             "status": "success",
             "segments_count": len(index_data.get("segments", [])),
+            "parent_chunks_count": len(index_data.get("parent_chunks", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
             "chunking_strategy": index_data.get("chunking_strategy", requested_strategy),
             "evidence_units": index_data.get("evidence_units", []),
@@ -98,6 +101,7 @@ def get_current_index(strategy: str | None = None):
         return {
             "status": "empty",
             "segments_count": 0,
+            "parent_chunks_count": 0,
             "eus_count": 0,
             "chunking_strategy": requested_strategy,
             "evidence_units": [],
@@ -106,11 +110,12 @@ def get_current_index(strategy: str | None = None):
         }
 
 def _apply_chunking_config(request: BuildIndexRequest):
+    # AUTOMERGE_THRESHOLD is deliberately absent: it only selects parent chunks at
+    # query time and has no effect on the index, so building must not overwrite it.
     config.CHUNKING_STRATEGY = request.chunking_strategy
     config.STB_LEAF_SIZE = request.stb_leaf_size
     config.STB_LEAF_OVERLAP = request.stb_leaf_overlap
     config.STB_LEAVES_PER_PARENT = request.stb_leaves_per_parent
-    config.AUTOMERGE_THRESHOLD = request.automerge_threshold
 
 @app.post("/api/build-index")
 def build_index(request: BuildIndexRequest):
@@ -127,6 +132,7 @@ def build_index(request: BuildIndexRequest):
         return {
             "status": "success",
             "segments_count": len(index_data.get("segments", [])),
+            "parent_chunks_count": len(index_data.get("parent_chunks", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
             "chunking_strategy": request.chunking_strategy,
             "evidence_units": index_data.get("evidence_units", [])
@@ -143,7 +149,6 @@ def upload_file(
     stb_leaf_size: int = Form(80),
     stb_leaf_overlap: int = Form(20),
     stb_leaves_per_parent: int = Form(3),
-    automerge_threshold: float = Form(0.0),
 ):
     try:
         content = file.file.read()
@@ -155,7 +160,6 @@ def upload_file(
             stb_leaf_size=stb_leaf_size,
             stb_leaf_overlap=stb_leaf_overlap,
             stb_leaves_per_parent=stb_leaves_per_parent,
-            automerge_threshold=automerge_threshold,
         )
         _apply_chunking_config(req)
         index_data = build_roi_rag_index(text, source_label=file.filename or "")
@@ -167,6 +171,7 @@ def upload_file(
             "status": "success",
             "filename": file.filename,
             "segments_count": len(index_data.get("segments", [])),
+            "parent_chunks_count": len(index_data.get("parent_chunks", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
             "chunking_strategy": chunking_strategy,
             "evidence_units": index_data.get("evidence_units", [])
@@ -186,11 +191,27 @@ def execute_query(request: QueryRequest):
     if request.chunking_strategy:
         config.CHUNKING_STRATEGY = request.chunking_strategy
 
+    if request.stb_retrieval_mode and request.stb_retrieval_mode not in config.STB_RETRIEVAL_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown stb_retrieval_mode '{request.stb_retrieval_mode}'. "
+                f"Expected one of {list(config.STB_RETRIEVAL_MODES)}."
+            ),
+        )
+
+    # A query may override the threshold for itself only; config stays the default
+    # so an omitted value never inherits some earlier request's choice.
+    previous_threshold = config.AUTOMERGE_THRESHOLD
+    if request.automerge_threshold is not None:
+        config.AUTOMERGE_THRESHOLD = request.automerge_threshold
+
     try:
         res = roi_pipeline(
             request.query,
             use_cache=request.use_cache,
             use_bm25=request.use_bm25,
+            stb_retrieval_mode=request.stb_retrieval_mode,
         )
         return {
             "status": "success",
@@ -205,13 +226,16 @@ def execute_query(request: QueryRequest):
                 "bm25_evidence_selection": res.get("bm25_evidence_selection", False),
                 "pipeline_metrics": res.get("pipeline_metrics", {}),
                 "prompt": res["prompt"],
-                "cache_hit": res["cache_hit"]
+                "cache_hit": res["cache_hit"],
+                "stb_retrieval_mode": res.get("stb_retrieval_mode")
             }
         }
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        config.AUTOMERGE_THRESHOLD = previous_threshold
 
 class EvaluateSingleRequest(BaseModel):
     question: str
