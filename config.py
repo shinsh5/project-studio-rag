@@ -25,9 +25,12 @@ OLLAMA_FRESH_RUNNER = os.getenv("OLLAMA_FRESH_RUNNER", "false").lower() in {
     "yes",
     "on",
 }
+# Off by default: while comparing retrieval strategies, a cache hit returns an
+# answer generated under different settings and reports zero tokens, which
+# silently corrupts token and latency measurements.
 LLM_RESPONSE_CACHE_DEFAULT = os.getenv(
     "LLM_RESPONSE_CACHE_DEFAULT",
-    "true",
+    "false",
 ).lower() in {"1", "true", "yes", "on"}
 LLM_RESPONSE_CACHE_MAX_SIZE = int(os.getenv("LLM_RESPONSE_CACHE_MAX_SIZE", "128"))
 # Only RAGAS faithfulness evaluation uses the Gemini API. Generation remains on Ollama.

@@ -9,8 +9,10 @@ from evaluate_ragas import FaithfulnessEvaluation, StatementVerdict
 
 
 class TestQueryResponseCacheOption(unittest.TestCase):
-    def test_query_request_uses_cache_by_default(self):
-        self.assertTrue(QueryRequest(query="Question?").use_cache)
+    def test_query_request_disables_cache_by_default(self):
+        # A cache hit would return an answer generated under different settings
+        # and report zero tokens, corrupting strategy comparisons.
+        self.assertFalse(QueryRequest(query="Question?").use_cache)
 
     def test_api_forwards_cache_choice_and_reports_hit(self):
         pipeline_result = {
