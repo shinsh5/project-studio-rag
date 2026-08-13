@@ -21,3 +21,7 @@ Thumbs.db
 # Per-chunking-strategy generated indexes (rebuildable via GUI/CLI)
 data/roi_rag/
 data/small_to_big/
+
+# Node dependencies and Vite build output (regenerable via npm install / npm run build)
+node_modules/
+app/static/pipeline-flow/
