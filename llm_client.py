@@ -94,6 +94,39 @@ def warmup_ollama_model(model_name: str | None = None):
 
 
 _RAGAS_LLM = None
+_RAGAS_EMBEDDINGS = None
+
+
+def get_ragas_embeddings():
+    """
+    Return a RAGAS-compatible embeddings wrapper backed by the same local
+    SentenceTransformer used for indexing, so answer-relevancy scoring costs
+    no API calls and stays consistent with retrieval.
+    """
+    global _RAGAS_EMBEDDINGS
+    if _RAGAS_EMBEDDINGS is None:
+        from ragas.embeddings import BaseRagasEmbeddings
+
+        from embeddings import get_embedding_model
+
+        class _LocalRagasEmbeddings(BaseRagasEmbeddings):
+            def __init__(self):
+                self._model = get_embedding_model()
+
+            def embed_query(self, text: str) -> list[float]:
+                return self._model.embed_query(text)
+
+            def embed_documents(self, texts: list[str]) -> list[list[float]]:
+                return self._model.embed_documents(texts)
+
+            async def aembed_query(self, text: str) -> list[float]:
+                return self.embed_query(text)
+
+            async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
+                return self.embed_documents(texts)
+
+        _RAGAS_EMBEDDINGS = _LocalRagasEmbeddings()
+    return _RAGAS_EMBEDDINGS
 
 
 def get_ragas_llm():

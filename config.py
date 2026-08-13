@@ -35,6 +35,15 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 GEMINI_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.0"))
 GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "300"))
+# RAGAS answer relevancy generates this many candidate questions per answer and
+# averages their similarity to the real question. RAGAS forces temperature 0.3
+# whenever this is above 1, so the score varies between runs; a larger ensemble
+# trades API calls for a tighter spread. Measured over 5 repeats on one sample:
+# strictness 1 -> stdev 0.0000 (deterministic but single-sample biased),
+# 3 -> 0.0155, 5 -> 0.0077.
+RAGAS_ANSWER_RELEVANCY_STRICTNESS = int(
+    os.getenv("RAGAS_ANSWER_RELEVANCY_STRICTNESS", "5")
+)
 
 # Embedding Configuration
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")

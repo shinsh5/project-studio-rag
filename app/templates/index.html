@@ -1316,9 +1316,20 @@
                         completedSeconds + '초 만에 평가가 완료되었습니다.'
                 });
 
-                document.getElementById('ragasFaithfulness').innerText =
+                const scoreParts = [
                     'Faithfulness: ' +
-                    finalData.scores.faithfulness.toFixed(4);
+                        finalData.scores.faithfulness.toFixed(4)
+                ];
+                if (typeof finalData.scores.answer_relevancy === 'number') {
+                    scoreParts.push(
+                        'Answer Relevancy: ' +
+                            finalData.scores.answer_relevancy.toFixed(4)
+                    );
+                } else {
+                    scoreParts.push('Answer Relevancy: N/A');
+                }
+                document.getElementById('ragasFaithfulness').innerText =
+                    scoreParts.join('  |  ');
                 const details = finalData.details || {};
                 const detailsBox = document.getElementById('ragasDetails');
                 detailsBox.replaceChildren();
@@ -1336,6 +1347,17 @@
                     ' · Judge: ' +
                     (details.judge_model || 'unknown');
                 detailsBox.appendChild(summary);
+
+                if (details.answer_relevancy_error) {
+                    const note = document.createElement('div');
+                    note.style.cssText =
+                        'font-size: 0.8rem; color: var(--text-secondary); ' +
+                        'margin-bottom: 0.75rem; line-height: 1.5;';
+                    note.textContent =
+                        'Answer Relevancy 실패: ' +
+                        details.answer_relevancy_error;
+                    detailsBox.appendChild(note);
+                }
 
                 (details.claims || []).forEach((claim, index) => {
                     const item = document.createElement('div');

@@ -20,7 +20,11 @@ if parent_dir not in sys.path:
 import config
 from indexer import build_roi_rag_index, load_roi_rag_index, load_roi_rag_index_for
 from roi_rag import clear_response_cache, get_roi_rag_pipeline
-from evaluate_ragas import RagasStructuredOutputError, score_faithfulness
+from evaluate_ragas import (
+    RagasStructuredOutputError,
+    score_faithfulness,
+    score_response_relevancy,
+)
 
 app = FastAPI(
     title="ROI-RAG Standed Inference API",
@@ -200,16 +204,36 @@ class EvaluateSingleRequest(BaseModel):
     contexts: list[str]
 
 
-def _evaluation_response(eval_result):
+async def _score_answer_relevancy(request) -> tuple[float | None, str | None]:
+    """
+    Answer relevancy needs no ground truth, so it runs for ad-hoc GUI questions.
+    Context recall is deliberately absent here: it requires a reference answer,
+    which only batch evaluation over MULTINEWS_QA has.
+    """
+    try:
+        return await score_response_relevancy(
+            question=request.question,
+            answer=request.answer,
+        ), None
+    except Exception as exc:
+        print(f"[RAGAS] Answer relevancy failed: {type(exc).__name__}: {exc}")
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _evaluation_response(eval_result, answer_relevancy=None, relevancy_error=None):
     f_score = float(eval_result.value)
     if not math.isfinite(f_score):
         raise ValueError(
             "RAGAS evaluation did not produce a finite faithfulness score."
         )
+    scores = {"faithfulness": f_score}
+    if answer_relevancy is not None:
+        scores["answer_relevancy"] = answer_relevancy
     return {
         "status": "success",
-        "scores": {"faithfulness": f_score},
+        "scores": scores,
         "details": {
+            "answer_relevancy_error": relevancy_error,
             "supported_claims": eval_result.supported_claims,
             "total_claims": eval_result.total_claims,
             "claims": [claim.model_dump() for claim in eval_result.claims],
@@ -231,9 +255,10 @@ async def evaluate_single(request: EvaluateSingleRequest):
             answer=request.answer,
             contexts=request.contexts,
         )
+        relevancy, relevancy_error = await _score_answer_relevancy(request)
         elapsed = time.perf_counter() - started_at
-        print(f"[RAGAS] Faithfulness finished (elapsed={elapsed:.1f}s)")
-        return _evaluation_response(eval_result)
+        print(f"[RAGAS] Faithfulness + answer relevancy finished (elapsed={elapsed:.1f}s)")
+        return _evaluation_response(eval_result, relevancy, relevancy_error)
     except RagasStructuredOutputError as exc:
         raise HTTPException(
             status_code=422,
@@ -276,7 +301,13 @@ async def evaluate_single_stream(request: EvaluateSingleRequest):
                     contexts=request.contexts,
                     progress_callback=report_progress,
                 )
-                response = _evaluation_response(eval_result)
+                await report_progress({
+                    "stage": "answer_relevancy",
+                    "progress": 97,
+                    "message": "answer relevancy 계산 중",
+                })
+                relevancy, relevancy_error = await _score_answer_relevancy(request)
+                response = _evaluation_response(eval_result, relevancy, relevancy_error)
                 response.update(
                     {
                         "type": "result",

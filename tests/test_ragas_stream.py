@@ -71,8 +71,13 @@ class TestRagasProgressStream(unittest.TestCase):
                 contexts_evaluated=1,
             )
 
+        async def fake_relevancy(question, answer):
+            return 0.87
+
         client = TestClient(app)
-        with patch("app.main.score_faithfulness", side_effect=fake_score):
+        with patch("app.main.score_faithfulness", side_effect=fake_score), patch(
+            "app.main.score_response_relevancy", side_effect=fake_relevancy
+        ):
             with client.stream(
                 "POST",
                 "/api/evaluate-single-stream",
@@ -96,10 +101,20 @@ class TestRagasProgressStream(unittest.TestCase):
 
         self.assertEqual(
             [event["type"] for event in events],
-            ["progress", "progress", "progress", "progress", "progress", "result"],
+            [
+                "progress",
+                "progress",
+                "progress",
+                "progress",
+                "progress",
+                "progress",
+                "result",
+            ],
         )
         self.assertEqual(events[0]["stage"], "validating_input")
+        self.assertEqual(events[-2]["stage"], "answer_relevancy")
         self.assertEqual(events[-1]["scores"]["faithfulness"], 1.0)
+        self.assertEqual(events[-1]["scores"]["answer_relevancy"], 0.87)
 
 
 if __name__ == "__main__":

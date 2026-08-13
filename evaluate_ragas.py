@@ -9,7 +9,8 @@ import time
 from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from ragas.metrics import Faithfulness
+from ragas.dataset_schema import SingleTurnSample
+from ragas.metrics import Faithfulness, LLMContextRecall, ResponseRelevancy
 
 import config
 import llm_client
@@ -66,6 +67,89 @@ async def _emit_progress(
 
 def _build_faithfulness_metric() -> Faithfulness:
     return Faithfulness(llm=llm_client.get_ragas_llm())
+
+
+def _build_response_relevancy_metric() -> ResponseRelevancy:
+    """
+    Answer relevancy embeds with the local model, so only question generation
+    costs API calls. Strictness controls that ensemble size -- see
+    config.RAGAS_ANSWER_RELEVANCY_STRICTNESS for the measured variance.
+    """
+    return ResponseRelevancy(
+        llm=llm_client.get_ragas_llm(),
+        embeddings=llm_client.get_ragas_embeddings(),
+        strictness=config.RAGAS_ANSWER_RELEVANCY_STRICTNESS,
+    )
+
+
+def _build_context_recall_metric() -> LLMContextRecall:
+    return LLMContextRecall(llm=llm_client.get_ragas_llm())
+
+
+async def _score_single_turn(metric, sample: SingleTurnSample, label: str) -> float:
+    """Run one RAGAS single-turn metric with the shared timeout and error wrapping."""
+    try:
+        score = await asyncio.wait_for(
+            metric.single_turn_ascore(sample),
+            timeout=config.GEMINI_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        raise
+    except (RuntimeError, ValidationError, ValueError) as exc:
+        raise RagasStructuredOutputError(
+            f"Gemini returned invalid {label} output: {exc}"
+        ) from exc
+
+    score = float(score)
+    if not math.isfinite(score):
+        raise RagasStructuredOutputError(
+            f"RAGAS returned a non-finite {label} score."
+        )
+    return score
+
+
+async def score_response_relevancy(question: str, answer: str) -> float:
+    """
+    How well the answer addresses the question. Needs no ground truth, so this
+    also runs for ad-hoc GUI questions. RAGAS scores non-committal answers
+    ("the information is not available") near zero, which makes over-refusal
+    visible -- faithfulness alone cannot distinguish that from hallucination.
+    """
+    if not question.strip():
+        raise ValueError("question is missing.")
+    if not answer.strip():
+        raise ValueError("answer is missing.")
+
+    sample = SingleTurnSample(user_input=question, response=answer)
+    return await _score_single_turn(
+        _build_response_relevancy_metric(), sample, "answer relevancy"
+    )
+
+
+async def score_context_recall(
+    question: str, contexts: list[str], reference: str
+) -> float:
+    """
+    How much of the reference answer is actually covered by the retrieved
+    contexts. This is the metric Small-to-Big is expected to improve, since it
+    measures retrieval coverage rather than how faithfully the answer copies
+    whatever was retrieved. Requires a ground truth, so it only runs in batch
+    evaluation over MULTINEWS_QA.
+    """
+    clean_contexts = [c for c in contexts if c.strip()]
+    if not clean_contexts:
+        raise ValueError("contexts are missing.")
+    if not reference.strip():
+        raise ValueError("reference (ground truth) is missing.")
+
+    sample = SingleTurnSample(
+        user_input=question,
+        retrieved_contexts=clean_contexts,
+        reference=reference,
+    )
+    return await _score_single_turn(
+        _build_context_recall_metric(), sample, "context recall"
+    )
 
 
 async def score_faithfulness(
@@ -179,10 +263,19 @@ async def score_faithfulness(
 
 
 async def evaluate_faithfulness(results: list[dict]) -> list[dict]:
-    """Evaluate generated answers sequentially with a fresh Gemini judge call."""
+    """
+    Evaluate generated answers sequentially with fresh Gemini judge calls.
+
+    Scores faithfulness and answer relevancy for every sample, plus context
+    recall when the sample carries a ground truth. A failure in one metric is
+    recorded and does not abort the remaining metrics or samples -- a long
+    batch run should not be lost to a single malformed judge response.
+    """
     evaluated = []
     for item in results:
         started_at = time.perf_counter()
+        row = {"question": item["question"]}
+
         metric_result = await score_faithfulness(
             question=item["question"],
             answer=item["answer"],
@@ -191,13 +284,35 @@ async def evaluate_faithfulness(results: list[dict]) -> list[dict]:
         score = float(metric_result.value)
         if not math.isfinite(score):
             raise ValueError("RAGAS returned a non-finite faithfulness score.")
-        evaluated.append(
-            {
-                "question": item["question"],
-                "faithfulness": score,
-                "elapsed_seconds": round(time.perf_counter() - started_at, 3),
-            }
-        )
+        row["faithfulness"] = score
+        row["supported_claims"] = metric_result.supported_claims
+        row["total_claims"] = metric_result.total_claims
+
+        try:
+            row["answer_relevancy"] = await score_response_relevancy(
+                question=item["question"],
+                answer=item["answer"],
+            )
+        except Exception as exc:
+            row["answer_relevancy"] = None
+            row["answer_relevancy_error"] = f"{type(exc).__name__}: {exc}"
+
+        reference = (item.get("ground_truth") or "").strip()
+        if reference:
+            try:
+                row["context_recall"] = await score_context_recall(
+                    question=item["question"],
+                    contexts=item["contexts"],
+                    reference=reference,
+                )
+            except Exception as exc:
+                row["context_recall"] = None
+                row["context_recall_error"] = f"{type(exc).__name__}: {exc}"
+        else:
+            row["context_recall"] = None
+
+        row["elapsed_seconds"] = round(time.perf_counter() - started_at, 3)
+        evaluated.append(row)
     return evaluated
 
 

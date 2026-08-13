@@ -1,0 +1,775 @@
+[
+ {
+  "idx": 1,
+  "question": "How many governor positions is the GOP potential to control after today's races, according to the summary?",
+  "answer": "According to the summaries provided, Republicans are poised to gain at least one governor position and potentially extend their control over more than two-thirds of U.S. governorships. Currently, Republicans hold 29 governorships, Democrats have 20, and Rhode Island's Gov. Lincoln Chafee is an Independent. With gains in Montana, New Hampshire, and Washington, along with the likely retention of seats in West Virginia and Missouri, and wins in Utah, North Dakota, and Indiana, the GOP could potentially control more than two-thirds of governor positions after today's races.",
+  "eu_ids": [
+   1,
+   0,
+   22
+  ],
+  "prompt_chars": 12807,
+  "faithfulness": 1.0,
+  "supported": 15,
+  "total": 15,
+  "failed_claims": []
+ },
+ {
+  "idx": 2,
+  "question": "Was the kiss-in event page on Facebook initially taken down by Facebook or the organizer?",
+  "answer": "The initial action was that Facebook removed a photo of two men kissing from a Facebook page protesting a London pub's decision to eject a same-sex couple for kissing. The removal was not due to the organizer but rather because the photo \"contains nudity, or any kind of graphic or sexually suggestive content,\" according to Facebook's Statement of Rights and Responsibilities. This action prompted protests and scores of people posting their own pictures of same-sex couples kissing in protest.",
+  "eu_ids": [
+   3,
+   4,
+   2
+  ],
+  "prompt_chars": 14469,
+  "faithfulness": 0.8571,
+  "supported": 6,
+  "total": 7,
+  "failed_claims": [
+   "This reason for removal is according to Facebook's Statement of Rights and Responsibilities."
+  ]
+ },
+ {
+  "idx": 3,
+  "question": "What is the name proposed for the new state by Siskiyou County?",
+  "answer": "The name proposed for the new state by Siskiyou County is Jefferson.",
+  "eu_ids": [
+   4,
+   0,
+   1
+  ],
+  "prompt_chars": 14308,
+  "faithfulness": 1.0,
+  "supported": 1,
+  "total": 1,
+  "failed_claims": []
+ },
+ {
+  "idx": 4,
+  "question": "What is the primary reason John Herrman gives for Microsoft buying Nokia's phone business?",
+  "answer": "The information provided does not specify the exact reasons given by John Herrman for Microsoft buying Nokia's phone business. The evidence mentions that Microsoft acquired most of Nokia to advance its devices and services strategy, diverging from Apple's model, but it does not attribute these points specifically to John Herrman. Therefore, based on the given evidence, I cannot provide a direct answer to the user's query regarding John Herrman's specific reasons.",
+  "eu_ids": [
+   7,
+   6,
+   5
+  ],
+  "prompt_chars": 14239,
+  "faithfulness": 1.0,
+  "supported": 5,
+  "total": 5,
+  "failed_claims": []
+ },
+ {
+  "idx": 5,
+  "question": "What case brought by California teachers could lead to a reconsideration of union dues similar to Citizens United?",
+  "answer": "The information provided does not contain any details about a case brought by California teachers regarding union dues or a comparison to the Citizens United case. Therefore, I cannot provide an answer based on the given evidence.",
+  "eu_ids": [
+   36,
+   4,
+   35
+  ],
+  "prompt_chars": 10538,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ },
+ {
+  "idx": 6,
+  "question": "Is the current owner of 50 Bowery willing to conduct archaeological investigations to confirm the site's history?",
+  "answer": "No, the current owner, Alex Chu, is not willing to conduct archaeological investigations. The Landmarks Preservation Commission cannot mandate such an investigation due to ownership by Alex Chu and can only provide a list of good archaeologists. Elected officials are also involved but need to address the issue with Chu first.",
+  "eu_ids": [
+   9,
+   10,
+   56
+  ],
+  "prompt_chars": 11821,
+  "faithfulness": 0.8571,
+  "supported": 6,
+  "total": 7,
+  "failed_claims": [
+   "Alex Chu is not willing to conduct archaeological investigations."
+  ]
+ },
+ {
+  "idx": 7,
+  "question": "Was the recent drone flight into Israeli airspace claimed by Iran as a psychological operation by Israel?",
+  "answer": "The information provided does not include any claims about the drone flight being a psychological operation by Israel. The Iranian military official, Jamaluddin Aberoumand, deputy coordinator for Iran's Islamic Revolutionary Guard Corps, stated that the incident indicated \"Israel's Iron Dome anti-missile defense system 'does not work and lacks the necessary capacity'.\" However, there is no mention of Iran claiming this as a psychological operation by Israel.",
+  "eu_ids": [
+   11,
+   12,
+   4
+  ],
+  "prompt_chars": 14697,
+  "faithfulness": 1.0,
+  "supported": 6,
+  "total": 6,
+  "failed_claims": []
+ },
+ {
+  "idx": 8,
+  "question": "Who attempted to send the package containing the Picasso painting to New York?",
+  "answer": "The package containing the Picasso painting \"La Coiffeuse\" was shipped from Belgium to Newark, New Jersey, under false pretenses as a $37 holiday-themed “art craft.” The shipper was identified only as \"Robert.\"",
+  "eu_ids": [
+   13,
+   14,
+   10
+  ],
+  "prompt_chars": 13475,
+  "faithfulness": 1.0,
+  "supported": 5,
+  "total": 5,
+  "failed_claims": []
+ },
+ {
+  "idx": 9,
+  "question": "What criminal charge is Eiram Chanel Amir Dixson facing for her actions at the Wendy's drive-thru?",
+  "answer": "The information provided does not contain any details about Eiram Chanel Amir Dixson or a criminal charge related to a Wendy's drive-thru incident. Therefore, I cannot provide an answer based on the given evidence.",
+  "eu_ids": [
+   32,
+   16,
+   31
+  ],
+  "prompt_chars": 13816,
+  "faithfulness": 0.6667,
+  "supported": 2,
+  "total": 3,
+  "failed_claims": [
+   "An answer cannot be provided based on the given evidence."
+  ]
+ },
+ {
+  "idx": 10,
+  "question": "What is the current status of Officer Crystal Almeida according to the summary?",
+  "answer": "According to the summaries provided, Officer Crystal Almeida remains in critical condition but is making remarkable recoveries after being shot during the incident at the Home Depot.",
+  "eu_ids": [
+   17,
+   16,
+   18
+  ],
+  "prompt_chars": 11149,
+  "faithfulness": 0.6667,
+  "supported": 2,
+  "total": 3,
+  "failed_claims": [
+   "Officer Crystal Almeida remains in critical condition."
+  ]
+ },
+ {
+  "idx": 11,
+  "question": "How many fake distress calls has the man made since July 2014 according to the US Coast Guard?",
+  "answer": "The man made 28 false distress calls since July 2014 according to the US Coast Guard.",
+  "eu_ids": [
+   19,
+   11,
+   2
+  ],
+  "prompt_chars": 14418,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ },
+ {
+  "idx": 12,
+  "question": "What specific promise does Will Ferrell make in his video to encourage people to vote for President Obama?",
+  "answer": "The information provided in the evidence units does not contain any details about a video from Will Ferrell encouraging people to vote for President Obama. Therefore, based on the given evidence, I cannot provide an answer to this specific query.",
+  "eu_ids": [
+   0,
+   3,
+   8
+  ],
+  "prompt_chars": 14325,
+  "faithfulness": 1.0,
+  "supported": 2,
+  "total": 2,
+  "failed_claims": []
+ },
+ {
+  "idx": 13,
+  "question": "What are the two possible scenarios being considered by police for the cause of death of the Ullestad brothers?",
+  "answer": "Based on the evidence provided, the two possible scenarios being considered by police for the cause of death of the Ullestad brothers are a murder-suicide or an accident-suicide. Police stated they are not ruling either scenario out and are still investigating to piece together what led to the deaths.",
+  "eu_ids": [
+   16,
+   17,
+   18
+  ],
+  "prompt_chars": 11183,
+  "faithfulness": 1.0,
+  "supported": 5,
+  "total": 5,
+  "failed_claims": []
+ },
+ {
+  "idx": 14,
+  "question": "What was the main reason cited by those who opposed including references to al-Qaeda in the initial Benghazi talking points?",
+  "answer": "The information regarding the main reason cited by those who opposed including references to al-Qaeda in the initial Benghazi talking points is not present in the provided documents.",
+  "eu_ids": [
+   11,
+   46,
+   8
+  ],
+  "prompt_chars": 12313,
+  "faithfulness": 0.0,
+  "supported": 0,
+  "total": 1,
+  "failed_claims": [
+   "Information regarding the main reason cited by those who opposed including references to al-Qaeda in the initial Benghazi talking points is not present in the provided documents."
+  ]
+ },
+ {
+  "idx": 15,
+  "question": "How large is the new island formed by the volcanic eruption off Tonga's coast?",
+  "answer": "The new island formed by the volcanic eruption off Tonga's coast is more than one kilometer wide and two kilometers long.",
+  "eu_ids": [
+   20,
+   12,
+   4
+  ],
+  "prompt_chars": 14379,
+  "faithfulness": 1.0,
+  "supported": 2,
+  "total": 2,
+  "failed_claims": []
+ },
+ {
+  "idx": 16,
+  "question": "What percentage of American children were on food stamps in 2007 compared to the current figure of nearly one in five?",
+  "answer": "In 2007, before the Great Recession, about one in eight or 9 million children received food stamps. By 2014, this number had increased dramatically to one in five or approximately 16 million children receiving food stamp assistance.",
+  "eu_ids": [
+   21,
+   22,
+   7
+  ],
+  "prompt_chars": 12976,
+  "faithfulness": 1.0,
+  "supported": 5,
+  "total": 5,
+  "failed_claims": []
+ },
+ {
+  "idx": 17,
+  "question": "Is Katie Wyble the only barista at the St. Augustine Starbucks who can communicate via sign language through the drive-thru video screen?",
+  "answer": "The provided evidence does not specify whether Katie Wyble is the only barista at the St. Augustine Starbucks who can communicate via sign language through the drive-thru video screen. Therefore, based on the given information, this specific detail cannot be confirmed or denied.",
+  "eu_ids": [
+   23,
+   3,
+   2
+  ],
+  "prompt_chars": 14293,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ },
+ {
+  "idx": 18,
+  "question": "Was Diana Fiscal-Gonzalez aware that collecting queen conchs was illegal in Florida before her arrest?",
+  "answer": "According to the evidence provided, Diana Fiscal-Gonzalez stated she did not know taking the shells from the beach was illegal. Therefore, based on the information given, she was unaware of the illegality of collecting living queen conchs in Florida before her arrest.",
+  "eu_ids": [
+   24,
+   25,
+   14
+  ],
+  "prompt_chars": 11838,
+  "faithfulness": 1.0,
+  "supported": 2,
+  "total": 2,
+  "failed_claims": []
+ },
+ {
+  "idx": 19,
+  "question": "What recent action did Suzanne Shaw take regarding her past treatment of Christie Brinkley?",
+  "answer": "Suzanne Shaw recently issued a written apology to Christie Brinkley for falsely accusing her of hindering Shaw's marriage, as reported by The Post. This came after Brinkley warned Shaw about Cook's infidelity in 2007. Shaw stated that given the public nature of their divorce and custody battle, a public apology was appropriate and deserved.",
+  "eu_ids": [
+   25,
+   32,
+   2
+  ],
+  "prompt_chars": 14036,
+  "faithfulness": 1.0,
+  "supported": 7,
+  "total": 7,
+  "failed_claims": []
+ },
+ {
+  "idx": 20,
+  "question": "Who is considered as a potential candidate to challenge Mitt Romney during the debate according to the summary?",
+  "answer": "Based on the provided evidence, there are several candidates who could potentially challenge Mitt Romney during the debate. However, specifically identifying one as a \"potential candidate\" to directly challenge Mitt Romney is not explicitly stated in the summaries. The evidence indicates that most of the Republican candidates are almost one misstep away from political death and that any problems become much more damaging as the clock ticks down. This suggests that multiple candidates could pose challenges to Mitt Romney, but without direct confirmation of a specific candidate aiming to directly challenge him, we cannot pinpoint an exact individual from the given information.",
+  "eu_ids": [
+   0,
+   1,
+   8
+  ],
+  "prompt_chars": 14027,
+  "faithfulness": 1.0,
+  "supported": 7,
+  "total": 7,
+  "failed_claims": []
+ },
+ {
+  "idx": 21,
+  "question": "What did Jesse Jackson say about Phil Robertson's comments on African Americans?",
+  "answer": "Jesse Jackson stated that Phil Robertson's statements were more offensive than those of the bus driver who ordered Rosa Parks to surrender her seat to a white person in Montgomery, Alabama, over 59 years ago. Jackson argued that while the bus driver was following state law, Robertson's statements were uttered freely and openly without any legal cover, implying a context of \"white privilege.\"",
+  "eu_ids": [
+   23,
+   3,
+   26
+  ],
+  "prompt_chars": 11773,
+  "faithfulness": 1.0,
+  "supported": 6,
+  "total": 6,
+  "failed_claims": []
+ },
+ {
+  "idx": 22,
+  "question": "What is the suspected cause of death for the eight endangered rhinos that died after being relocated to Tsavo East National Park?",
+  "answer": "The suspected cause of death for the eight endangered rhinos that died after being relocated to Tsavo East National Park is salt poisoning. The rhinos likely became dehydrated and drank more salty water in a fatal cycle as they tried to adapt to saltier water in their new home.",
+  "eu_ids": [
+   27,
+   20,
+   23
+  ],
+  "prompt_chars": 14077,
+  "faithfulness": 0.75,
+  "supported": 3,
+  "total": 4,
+  "failed_claims": [
+   "The suspected cause of death for the eight endangered rhinos that died after being relocated to Tsavo East National Park is salt poisoning."
+  ]
+ },
+ {
+  "idx": 23,
+  "question": "What is the current status of the defected North Korean soldier according to the summary?",
+  "answer": "According to the summary, the North Korean soldier who defected has been taken into protective custody and is still being interrogated by South Korean officials.",
+  "eu_ids": [
+   11,
+   27,
+   32
+  ],
+  "prompt_chars": 14291,
+  "faithfulness": 1.0,
+  "supported": 2,
+  "total": 2,
+  "failed_claims": []
+ },
+ {
+  "idx": 24,
+  "question": "When is the summer prospecting season expected to begin, according to experts?",
+  "answer": "According to experts, the summer prospecting season will begin when mountain melt-off is underway, and creeks, streams, and rivers recede. This typically indicates that by summertime, conditions will be favorable for gold mining activities in areas like Traverse Creek.",
+  "eu_ids": [
+   28,
+   48,
+   29
+  ],
+  "prompt_chars": 9198,
+  "faithfulness": 1.0,
+  "supported": 7,
+  "total": 7,
+  "failed_claims": []
+ },
+ {
+  "idx": 25,
+  "question": "What specific issues did Deena Murphy and Timothy Sullivan encounter with the renovations done to their rental property?",
+  "answer": "Deena Murphy and Timothy Sullivan encountered several issues with the renovations done to their rental property through the \"Fixer Upper\" series. Specifically, they allege that only about $85,000 out of the $140,000 they deposited into a fund with Big Coat TV was actually disbursed to contractors for the renovations. They also questioned the quality of the work, citing below-average reviews on Angie’s List. Additionally, they expressed concerns about Big Coat's business model and its licensing as a general contractor, noting that it is not licensed for this role.",
+  "eu_ids": [
+   31,
+   2,
+   25
+  ],
+  "prompt_chars": 14172,
+  "error": "RagasStructuredOutputError: Gemini returned invalid structured faithfulness output: Failed to parse StringIO from completion {\"statements\": [{\"statement\": \"Deena Murphy and Timothy Sullivan encountered several issues with renovations to a rental property.\", \"reason\": \"The context mentions that Deena Murphy and Timothy Sullivan are suing \\\"Fixer Upper\\\" production company Big Coat for $140,000 in renovations and that their lawsuit questions the quality of renovations. It also mentions that they were considering moving into a rental property with their foster children, implying the renovations were related to this. Therefore, it can be inferred they encountered issues.\", \"verdict\": 1}, {\"statement\": \"The renovations were done through the \\\"Fixer Upper\\\" series.\", \"reason\": \"The context explicitly states that Deena Murphy and Timothy Sullivan are suing \\\"Fixer Upper\\\" production company Big Coat for renovations. This directly links the renovations to the \\\"Fixer Upper\\\" series.\", \"verdict\": 1}, {\"statement\": \"Deena Murphy and Timothy Sullivan allege that approximately $85,000 of a $140,000 deposit was disbursed to contractors.\", \"reason\": \"The context states, \\\"They said they gave the production company $140,000 for renovations, but only about $85,000 went to the contractor.\\\" This directly supports the statement.\", \"verdict\": 1}, {\"statement\": \"The deposit was made into a fund with Big Coat TV.\", \"reason\": \"The context states, \\\"Murphy and Sullivan were asked to deposit $140,000 into a fund with the production company, who would later use that money to pay Fitz and other subcontractors.\\\" This confirms the deposit was made into a fund with Big Coat TV.\", \"verdict\": 1}, {\"statement\": \"Deena Murphy and Timothy Sullivan questioned the quality of the renovation work.\", \"reason\": \"The context states, \\\"Murphy and Sullivan's lawsuit also questions... the quality of renovations, citing below-average reviews on Angie’s List.\\\" This directly supports the statement.\", \"verdict\": 1}, {\"statement\": \"The renovation work received below-average reviews on Angie’s List.\", \"reason\": \"The context explicitly states that the lawsuit cited \\\"below-average reviews on Angie’s List\\\" regarding the quality of renovations. This directly supports the statement.\", \"verdict\": 1}, {\"statement\": \"Deena Murphy and Timothy Sullivan expressed concerns about Big Coat's business model.\", \"reason\": \"The context states that in their lawsuit, Murphy and Sullivan describe Big Coat’s business model as “skewed.” This indicates they expressed concerns about it.\", \"verdict\": 1}, {\"statement\": \"Deena Murphy and Timothy Sullivan expressed concerns about Big Coat's licensing as a general contractor.\", \"reason\": \"The context states, \\\"The suit also questions how Big Coat can operate as a general contractor, a role it’s not licensed for.\\\" This directly shows they expressed concerns about Big Coat's licensing.\", \"verdict\": 1}, {\"statement\": \"Big Coat TV is not licensed for the role of a general contractor.\", \"reason\": \"The context states, \\\"The suit also questions how Big Coat can operate as a general contractor, a role it’s not licensed for.\\\" This directly implies that Big Coat TV is not licensed for that role.\", \"verdict\": 1}]}. Got: 1 validation error for StringIO\ntext\n  Field required [type=missing, input_value={'statements': [{'stateme... role.', 'verdict': 1}]}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/missing\nFor troubleshooting, visit: https://docs.langchain.com/oss/python/langchain/errors/OUTPUT_PARSING_FAILURE "
+ },
+ {
+  "idx": 26,
+  "question": "What is the legal plea that Anissa Weier's attorneys want to change her current not guilty plea to in the \"Slender Man\" case?",
+  "answer": "Anissa Weier's attorneys want to change her current not guilty plea to a plea of not guilty by reason of mental disease or defect, often referred to as an NGI plea.",
+  "eu_ids": [
+   32,
+   31,
+   36
+  ],
+  "prompt_chars": 11935,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ },
+ {
+  "idx": 27,
+  "question": "How did the Fitbit data help investigators in solving Karen Navarra's murder case?",
+  "answer": "The Fitbit data helped investigators by showing a rapid rise in Karen Navarra's heart rate before a sudden drop-off to nothing. This information assisted San Jose police in piecing together clues and ultimately led to the arrest of her stepfather, Anthony Aiello, who was charged with her murder.",
+  "eu_ids": [
+   16,
+   12,
+   5
+  ],
+  "prompt_chars": 13750,
+  "faithfulness": 1.0,
+  "supported": 5,
+  "total": 5,
+  "failed_claims": []
+ },
+ {
+  "idx": 28,
+  "question": "What specific claim does John Doe make about the university's disciplinary procedure regarding male students who accept physical contact initiated by female students?",
+  "answer": "The information provided in the evidence units does not contain a specific claim made by John Doe regarding the university's disciplinary procedure for cases where male students accept physical contact initiated by female students. The evidence focuses on John Doe's claims of unfair treatment and violation of Title IX, but it does not detail his specific concerns about how the university handles situations involving consensual physical contact between male and female students.",
+  "eu_ids": [
+   36,
+   35,
+   34
+  ],
+  "prompt_chars": 8444,
+  "faithfulness": 1.0,
+  "supported": 4,
+  "total": 4,
+  "failed_claims": []
+ },
+ {
+  "idx": 29,
+  "question": "What did David Plouffe say about Newt Gingrich's accusation regarding President Obama and the Trayvon Martin case?",
+  "answer": "David Plouffe criticized Newt Gingrich's accusation that President Obama politicized the response to the Trayvon Martin case. Plouffe stated, \"Those two comments are really irresponsible. I would consider them reprehensible,\" and added, \"I think those comments were really hard to stomach.\" He further elaborated by saying, \"What the president of the United States should do is try to bring people together, not use these types of horrible and tragic individual cases to try to drive a White House senior adviser David Plouffe said on Sunday that the administration is \"confident\" that the U.S. Supreme Court will find the health care law constitutional.\"",
+  "eu_ids": [
+   8,
+   18,
+   46
+  ],
+  "prompt_chars": 10821,
+  "faithfulness": 0.8889,
+  "supported": 8,
+  "total": 9,
+  "failed_claims": [
+   "The U.S. Supreme Court will find the health care law constitutional."
+  ]
+ },
+ {
+  "idx": 30,
+  "question": "What inconsistencies in Lee Rodarte's story led authorities to identify him as a suspect?",
+  "answer": "The inconsistencies in Lee Rodarte's story that led authorities to identify him as a suspect included discrepancies found after he was interviewed by police. Specifically, the spelling issues noted by Savannah Gold’s father and the fact that Rodarte's car was found in the Bonefish Grill parking lot with a slashed tire and Gold's purse left unlocked were suspicious. These details suggested that Rodarte might have been involved in Savannah Gold's disappearance.",
+  "eu_ids": [
+   14,
+   18,
+   32
+  ],
+  "prompt_chars": 12571,
+  "faithfulness": 1.0,
+  "supported": 7,
+  "total": 7,
+  "failed_claims": []
+ },
+ {
+  "idx": 31,
+  "question": "What did Rihanna tweet in response to The Sun's claim about a body double?",
+  "answer": "Rihanna took exception to the article written by The Sun and launched a foul mouthed tirade against the newspaper yesterday. She wrote on Twitter: 'Ok @thesunnewspaper, this is the only way Tweet with a location You can add location information to your Tweets, such as your city or precise location, from the web and via third-party applications. You always have the option to delete your Tweet location history. Learn more",
+  "eu_ids": [
+   37,
+   38,
+   14
+  ],
+  "prompt_chars": 13200,
+  "faithfulness": 1.0,
+  "supported": 8,
+  "total": 8,
+  "failed_claims": []
+ },
+ {
+  "idx": 32,
+  "question": "Who is the frontrunner to perform at the Super Bowl LIII halftime show according to the sources?",
+  "answer": "According to the sources cited in the evidence, Maroon 5 is the frontrunner to perform at the Super Bowl LIII halftime show. A source close to the situation and a second source close to the NFL both confirm that Maroon 5 will perform at the event on February 3rd in Atlanta, Georgia.",
+  "eu_ids": [
+   39,
+   40,
+   38
+  ],
+  "prompt_chars": 9819,
+  "faithfulness": 0.6667,
+  "supported": 2,
+  "total": 3,
+  "failed_claims": [
+   "According to the sources cited in the evidence, Maroon 5 is the frontrunner to perform at the Super Bowl LIII halftime show."
+  ]
+ },
+ {
+  "idx": 33,
+  "question": "Did the suspect board a plane after going to Denver International Airport?",
+  "answer": "No information is available in the provided evidence regarding whether the suspect boarded a plane after going to Denver International Airport. The evidence states that it's unknown if the suspect actually boarded a plane after going to the airport.",
+  "eu_ids": [
+   10,
+   11,
+   16
+  ],
+  "prompt_chars": 13978,
+  "faithfulness": 1.0,
+  "supported": 2,
+  "total": 2,
+  "failed_claims": []
+ },
+ {
+  "idx": 34,
+  "question": "What is the cost of the controversial Christmas tree in Piazza Venezia?",
+  "answer": "The controversial Christmas tree in Piazza Venezia, nicknamed Spelacchio or Mangy, is estimated to have cost 48,000 euros ($57,000).",
+  "eu_ids": [
+   41,
+   42,
+   13
+  ],
+  "prompt_chars": 12167,
+  "faithfulness": 1.0,
+  "supported": 4,
+  "total": 4,
+  "failed_claims": []
+ },
+ {
+  "idx": 35,
+  "question": "What is the potential consequence for a senator who violates Senate rules by disclosing secret or confidential business?",
+  "answer": "The provided evidence does not contain information regarding the potential consequences for a senator who violates Senate rules by disclosing secret or confidential business. Therefore, based solely on the given evidence, I cannot provide an answer to this query.",
+  "eu_ids": [
+   43,
+   8,
+   47
+  ],
+  "prompt_chars": 10358,
+  "faithfulness": 1.0,
+  "supported": 2,
+  "total": 2,
+  "failed_claims": []
+ },
+ {
+  "idx": 36,
+  "question": "What actions did South Park take to censor this week's episode after receiving a death threat?",
+  "answer": "The provided evidence does not contain any information related to South Park or actions taken regarding censorship due to a death threat. Therefore, I cannot provide an answer based on the given evidence.",
+  "eu_ids": [
+   18,
+   23,
+   16
+  ],
+  "prompt_chars": 12775,
+  "faithfulness": 0.6667,
+  "supported": 2,
+  "total": 3,
+  "failed_claims": [
+   "An answer cannot be provided based on the given evidence."
+  ]
+ },
+ {
+  "idx": 37,
+  "question": "How much more money has Mitt Romney raised from financial firms since spring compared to Obama?",
+  "answer": "Based on the provided evidence, Mitt Romney has raised far more money than Mr. Obama this year from the firms that have been among Wall Street’s top sources of donations for the two candidates. This gap underscores the growing alienation from Mr. Obama among many rank-and-file financial professionals and Mr. Romney’s aggressive and successful efforts to woo them. However, specific amounts are not provided in the evidence.\n\nTherefore, while it is stated that Mitt Romney has raised more money than Obama from financial firms, the exact amount by which he has exceeded Obama's fundraising is not specified in the given information.",
+  "eu_ids": [
+   7,
+   22,
+   21
+  ],
+  "prompt_chars": 12928,
+  "faithfulness": 1.0,
+  "supported": 6,
+  "total": 6,
+  "failed_claims": []
+ },
+ {
+  "idx": 38,
+  "question": "Was the eucalyptus tree that fell during the wedding photo incident affected by the long-term drought in southern California?",
+  "answer": "The provided evidence does not mention whether the eucalyptus tree that fell during the wedding photo incident was affected by the long-term drought in southern California. Therefore, based on the given information, this specific detail cannot be confirmed or denied.",
+  "eu_ids": [
+   42,
+   27,
+   57
+  ],
+  "prompt_chars": 11868,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ },
+ {
+  "idx": 39,
+  "question": "What year did Jimmy Causey first break out of a maximum-security prison?",
+  "answer": "The information provided does not contain the specific year when Jimmy Causey first broke out of a maximum-security prison. The evidence only mentions that he escaped from two different prisons in a dozen years, but it does not specify the years of these escapes.",
+  "eu_ids": [
+   9,
+   10,
+   16
+  ],
+  "prompt_chars": 13653,
+  "faithfulness": 0.3333,
+  "supported": 1,
+  "total": 3,
+  "failed_claims": [
+   "The provided information does not contain the specific year of Jimmy Causey's first maximum-security prison break.",
+   "The evidence does not specify the years of these escapes."
+  ]
+ },
+ {
+  "idx": 40,
+  "question": "What action has the IRS taken regarding Lois Lerner following the scandal?",
+  "answer": "The IRS placed Lois Lerner, the staffer involved in the agency’s targeting of conservative groups, on administrative leave after she declined to resign when asked by new acting IRS Commissioner Danny Werfel. During her first public appearance since the disclosure, Lerner invoked her Fifth Amendment rights against self-incrimination at a House Oversight hearing.",
+  "eu_ids": [
+   46,
+   47,
+   48
+  ],
+  "prompt_chars": 8948,
+  "faithfulness": 1.0,
+  "supported": 5,
+  "total": 5,
+  "failed_claims": []
+ },
+ {
+  "idx": 41,
+  "question": "What did Benjamin Attinger spell in the address of Hillary Clinton?",
+  "answer": "The information provided does not contain any details about Benjamin Attinger spelling an address for Hillary Clinton. Therefore, based on the given evidence, I cannot provide an answer to this query.",
+  "eu_ids": [
+   2,
+   0,
+   3
+  ],
+  "prompt_chars": 14813,
+  "faithfulness": 1.0,
+  "supported": 2,
+  "total": 2,
+  "failed_claims": []
+ },
+ {
+  "idx": 42,
+  "question": "How long did the surgery to perform the full penis and scrotum transplant last?",
+  "answer": "The surgery for the full penis and scrotum transplant lasted 14 hours.",
+  "eu_ids": [
+   49,
+   27,
+   3
+  ],
+  "prompt_chars": 14445,
+  "faithfulness": 1.0,
+  "supported": 1,
+  "total": 1,
+  "failed_claims": []
+ },
+ {
+  "idx": 43,
+  "question": "What caused the chain link fence at Fleming park in Augusta to become electrified?",
+  "answer": "The information provided does not contain details about a chain link fence at Fleming park in Augusta becoming electrified. Therefore, based solely on the given evidence, I cannot answer this query.",
+  "eu_ids": [
+   10,
+   50,
+   27
+  ],
+  "prompt_chars": 11913,
+  "faithfulness": 0.0,
+  "supported": 0,
+  "total": 2,
+  "failed_claims": [
+   "The provided information does not contain details about a chain link fence at Fleming park in Augusta becoming electrified.",
+   "Based solely on the given evidence, the query cannot be answered."
+  ]
+ },
+ {
+  "idx": 44,
+  "question": "How much could Hawaii's tourism industry potentially increase due to same-sex marriage ceremonies?",
+  "answer": "Based on the information provided, Hawaii's new law allowing same-sex couples to marry has attracted attention and interest from couples who wish to get married there. This suggests that the tourism industry in Hawaii could potentially see an increase as these couples come to the state for wedding ceremonies. However, specific figures regarding potential increases in tourism revenue are not present in the provided documents.",
+  "eu_ids": [
+   4,
+   3,
+   2
+  ],
+  "prompt_chars": 14619,
+  "faithfulness": 1.0,
+  "supported": 4,
+  "total": 4,
+  "failed_claims": []
+ },
+ {
+  "idx": 45,
+  "question": "What did Nasdaq blame for the technical glitch that caused the halt in trading?",
+  "answer": "Nasdaq blamed a technical glitch for the halt in trading. Specifically, there were issues with \"quote submissions\" that led to the suspension of all trade in Nasdaq-listed securities.",
+  "eu_ids": [
+   7,
+   6,
+   46
+  ],
+  "prompt_chars": 12548,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ },
+ {
+  "idx": 46,
+  "question": "What is the recommended maximum weight per shovelful of snow to avoid injury?",
+  "answer": "The recommended maximum weight per shovelful of snow to avoid injury is below 24 pounds. This recommendation comes from the current guidelines by Canada's Center for Occupational Health and Safety.",
+  "eu_ids": [
+   52,
+   49,
+   27
+  ],
+  "prompt_chars": 12327,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ },
+ {
+  "idx": 47,
+  "question": "What is the age of Taye Diggs and Idina Menzel's son?",
+  "answer": "Idina Menzel and Taye Diggs have a son named Walker who was born in September 2009. Therefore, as of now, Walker would be approximately 14 years old.",
+  "eu_ids": [
+   53,
+   31,
+   37
+  ],
+  "prompt_chars": 11532,
+  "faithfulness": 0.75,
+  "supported": 3,
+  "total": 4,
+  "failed_claims": [
+   "As of now, Walker is approximately 14 years old."
+  ]
+ },
+ {
+  "idx": 48,
+  "question": "What year did Roman Emperor Constantine the Great arrive in Jerusalem to build the first church around the tomb believed to be that of Jesus Christ?",
+  "answer": "According to the provided evidence, Roman Emperor Constantine the Great came to Jerusalem with his team around A.D. 325 to locate places associated with the life of Jesus, including the site believed to be the tomb of Jesus Christ.",
+  "eu_ids": [
+   54,
+   55,
+   56
+  ],
+  "prompt_chars": 8324,
+  "faithfulness": 1.0,
+  "supported": 5,
+  "total": 5,
+  "failed_claims": []
+ },
+ {
+  "idx": 49,
+  "question": "What happened to Picasso's \"Le Marin\" that caused it to be removed from the auction at Christie's?",
+  "answer": "Picasso's \"Le Marin,\" a 1943 self-portrait, was damaged by Steve Wynn's elbow during preparation for an auction at Christie's and was subsequently removed from the auction block. The damage occurred \"during the final stages of preparation\" for the auction on Tuesday, according to Christie’s statement.",
+  "eu_ids": [
+   13,
+   14,
+   4
+  ],
+  "prompt_chars": 14023,
+  "faithfulness": 1.0,
+  "supported": 6,
+  "total": 6,
+  "failed_claims": []
+ },
+ {
+  "idx": 50,
+  "question": "How many breweries are participating in the fundraiser to brew Resilience Butte County Proud IPA?",
+  "answer": "As of Tuesday morning, over 1,400 breweries across the U.S. signed up to participate in brewing and selling the Resilience Butte County Proud IPA, with all proceeds going to the Sierra Nevada Camp Fire Relief Fund.",
+  "eu_ids": [
+   15,
+   58,
+   57
+  ],
+  "prompt_chars": 9471,
+  "faithfulness": 1.0,
+  "supported": 3,
+  "total": 3,
+  "failed_claims": []
+ }
+]
