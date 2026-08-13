@@ -22,6 +22,10 @@ class TestQueryResponseCacheOption(unittest.TestCase):
             "latency_ms": 1,
             "api_calls": 0,
             "tokens_used": 0,
+            "pipeline_metrics": {
+                "retrieved_eus": 3,
+                "prompt_chars": 42,
+            },
             "prompt": "Prompt.",
             "cache_hit": True,
         }
@@ -34,6 +38,9 @@ class TestQueryResponseCacheOption(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["roi_rag"]["cache_hit"])
+        self.assertEqual(
+            response.json()["roi_rag"]["pipeline_metrics"]["retrieved_eus"], 3
+        )
         pipeline.assert_called_once_with(
             "Question?", use_cache=False, use_bm25=None
         )

@@ -71,6 +71,18 @@ class TestROIRAGCore(unittest.TestCase):
         self.assertNotIn(2, neighborhoods[0])
         self.assertEqual(sim_matrix.shape, (3, 3))
 
+class TestParentDeduplication(unittest.TestCase):
+    def test_deduplicates_parents_across_retrieved_eus(self):
+        seen = set()
+        first, first_duplicates = roi_rag._deduplicate_parent_ids([2, 3], seen)
+        second, second_duplicates = roi_rag._deduplicate_parent_ids([3, 4, 4], seen)
+
+        self.assertEqual(first, [2, 3])
+        self.assertEqual(first_duplicates, 0)
+        self.assertEqual(second, [4])
+        self.assertEqual(second_duplicates, 2)
+        self.assertEqual(seen, {2, 3, 4})
+
 class TestLlamaResponseCache(unittest.TestCase):
     def setUp(self):
         roi_rag.clear_response_cache()

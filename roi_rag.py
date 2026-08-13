@@ -105,6 +105,20 @@ def _rank_segments_by_query(
     return [valid[i] for i in np.argsort(-similarities)]
 
 
+def _deduplicate_parent_ids(
+    parent_ids: list[int], seen: set[int]
+) -> tuple[list[int], int]:
+    """Return first-seen parent IDs and the number of repeated candidates."""
+    unique: list[int] = []
+    duplicates = 0
+    for parent_id in parent_ids:
+        if parent_id in seen:
+            duplicates += 1
+            continue
+        seen.add(parent_id)
+        unique.append(parent_id)
+    return unique, duplicates
+
 def get_roi_rag_pipeline():
     """
     Returns a callable pipeline function for executing ROI-RAG queries against the built index.
@@ -237,13 +251,10 @@ def get_roi_rag_pipeline():
                     if 0 <= pid < len(parent_chunks)
                 ]
                 parent_candidates += len(valid_parent_ids)
-                selected_parents = [
-                    pid for pid in valid_parent_ids if pid not in used_parent_ids
-                ]
-                parent_duplicates_removed += (
-                    len(valid_parent_ids) - len(selected_parents)
+                selected_parents, duplicate_count = _deduplicate_parent_ids(
+                    valid_parent_ids, used_parent_ids
                 )
-                used_parent_ids.update(selected_parents)
+                parent_duplicates_removed += duplicate_count
 
                 if selected_parents:
                     parent_texts = "\n\n".join([
