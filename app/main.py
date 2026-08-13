@@ -53,7 +53,6 @@ class BuildIndexRequest(BaseModel):
     stb_leaf_size: int = 80
     stb_leaf_overlap: int = 20
     stb_leaves_per_parent: int = 3
-    automerge_threshold: float = 0.0
 
 # Endpoints
 @app.get("/", response_class=HTMLResponse)
@@ -103,11 +102,12 @@ def get_current_index(strategy: str | None = None):
         }
 
 def _apply_chunking_config(request: BuildIndexRequest):
+    # AUTOMERGE_THRESHOLD is deliberately absent: it only selects parent chunks at
+    # query time and has no effect on the index, so building must not overwrite it.
     config.CHUNKING_STRATEGY = request.chunking_strategy
     config.STB_LEAF_SIZE = request.stb_leaf_size
     config.STB_LEAF_OVERLAP = request.stb_leaf_overlap
     config.STB_LEAVES_PER_PARENT = request.stb_leaves_per_parent
-    config.AUTOMERGE_THRESHOLD = request.automerge_threshold
 
 @app.post("/api/build-index")
 def build_index(request: BuildIndexRequest):
@@ -141,7 +141,6 @@ def upload_file(
     stb_leaf_size: int = Form(80),
     stb_leaf_overlap: int = Form(20),
     stb_leaves_per_parent: int = Form(3),
-    automerge_threshold: float = Form(0.0),
 ):
     try:
         content = file.file.read()
@@ -153,7 +152,6 @@ def upload_file(
             stb_leaf_size=stb_leaf_size,
             stb_leaf_overlap=stb_leaf_overlap,
             stb_leaves_per_parent=stb_leaves_per_parent,
-            automerge_threshold=automerge_threshold,
         )
         _apply_chunking_config(req)
         index_data = build_roi_rag_index(text, source_label=file.filename or "")
@@ -194,7 +192,9 @@ def execute_query(request: QueryRequest):
             ),
         )
 
-    # AutoMerge threshold is a retrieval-time knob, so a query may override it.
+    # A query may override the threshold for itself only; config stays the default
+    # so an omitted value never inherits some earlier request's choice.
+    previous_threshold = config.AUTOMERGE_THRESHOLD
     if request.automerge_threshold is not None:
         config.AUTOMERGE_THRESHOLD = request.automerge_threshold
 
@@ -222,6 +222,8 @@ def execute_query(request: QueryRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        config.AUTOMERGE_THRESHOLD = previous_threshold
 
 class EvaluateSingleRequest(BaseModel):
     question: str

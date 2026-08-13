@@ -539,6 +539,12 @@
 
         .param-row.hidden { display: none; }
 
+        /* Retrieval knobs are experiment controls, shown only with ?debug in the URL.
+           Hidden by default so a failed flag check cannot expose them. */
+        .debug-only { display: none; }
+        body.debug-mode .param-row.debug-only { display: flex; }
+        body.debug-mode .param-divider.debug-only { display: block; }
+
         .strategy-badge {
             display: inline-block;
             padding: 0.2rem 0.6rem;
@@ -630,15 +636,15 @@
                         <span class="param-label">Leaves per Parent</span>
                         <input class="param-input" type="number" id="stbLeavesPerParent" value="3" min="1" max="10">
                     </div>
-                    <div class="param-divider">Retrieval (질의 시 적용 · 재빌드 불필요)</div>
-                    <div class="param-row">
+                    <div class="param-divider debug-only">Retrieval (질의 시 적용 · 재빌드 불필요)</div>
+                    <div class="param-row debug-only">
                         <span class="param-label">Retrieval Mode</span>
                         <select class="param-input" id="stbRetrievalMode" onchange="onStbRetrievalModeChange()">
                             <option value="automerge">1. AutoMerge (parent 선택)</option>
                             <option value="all_segments">2. Segment 전체선택</option>
                         </select>
                     </div>
-                    <div class="param-row" id="stbAutoMergeRow">
+                    <div class="param-row debug-only" id="stbAutoMergeRow">
                         <span class="param-label">AutoMerge Threshold</span>
                         <input class="param-input" type="number" id="stbAutoMerge" value="0.0" min="0" max="1" step="0.1">
                     </div>
@@ -828,6 +834,11 @@
 
         let currentStrategy = 'roi_rag';
 
+        // ?debug in the query string reveals the retrieval-mode controls. Without it the
+        // UI sends no retrieval params at all, so the server keeps its own defaults
+        // (automerge / AUTOMERGE_THRESHOLD) instead of being overridden per query.
+        const DEBUG_MODE = new URLSearchParams(location.search).has('debug');
+
         function buildButtonLabel(strategy) {
             return strategy === 'small_to_big' ? '🚀 Build Small-to-Big Index' : '🚀 Build ROI-RAG Index';
         }
@@ -847,15 +858,18 @@
         }
 
         function onStbRetrievalModeChange() {
+            // Outside debug mode the row stays hidden by .debug-only; rewriting its
+            // className here would drop that class and reveal it.
+            if (!DEBUG_MODE) return;
             // The threshold only governs parent selection, so it is meaningless
             // when every EU segment is sent verbatim.
             const mode = document.getElementById('stbRetrievalMode').value;
             document.getElementById('stbAutoMergeRow').className =
-                'param-row' + (mode === 'automerge' ? '' : ' hidden');
+                'param-row debug-only' + (mode === 'automerge' ? '' : ' hidden');
         }
 
         function getStbRetrievalParams() {
-            if (currentStrategy !== 'small_to_big') return {};
+            if (!DEBUG_MODE || currentStrategy !== 'small_to_big') return {};
             const mode = document.getElementById('stbRetrievalMode').value;
             const params = { stb_retrieval_mode: mode };
             if (mode === 'automerge') {
@@ -865,13 +879,14 @@
             return params;
         }
 
+        // Build params only. The AutoMerge threshold is a query-time knob and is sent
+        // with the query instead, so building never pins it.
         function getStbParams() {
             return {
                 chunking_strategy: currentStrategy,
                 stb_leaf_size: parseInt(document.getElementById('stbLeafSize').value) || 80,
                 stb_leaf_overlap: parseInt(document.getElementById('stbLeafOverlap').value) || 20,
                 stb_leaves_per_parent: parseInt(document.getElementById('stbLeavesPerParent').value) || 3,
-                automerge_threshold: parseFloat(document.getElementById('stbAutoMerge').value) || 0.0,
             };
         }
 
@@ -893,7 +908,10 @@
         }
 
         // Load current index status on page start
-        window.addEventListener('DOMContentLoaded', () => fetchCurrentIndex(currentStrategy));
+        window.addEventListener('DOMContentLoaded', () => {
+            if (DEBUG_MODE) document.body.classList.add('debug-mode');
+            fetchCurrentIndex(currentStrategy);
+        });
 
         async function fetchCurrentIndex(strategy) {
             try {
