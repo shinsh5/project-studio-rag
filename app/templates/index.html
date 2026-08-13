@@ -540,6 +540,7 @@
         ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--primary-color); }
     </style>
+    <link rel="stylesheet" href="/static/pipeline-flow/pipeline-flow.css">
 </head>
 <body>
     <header>
@@ -587,8 +588,12 @@
             <div class="card">
                 <div class="card-title">⚙️ Chunking Strategy</div>
                 <div class="strategy-toggle">
-                    <button class="strategy-btn active" id="btnRoiRag" onclick="setStrategy('roi_rag')">ROI-RAG</button>
-                    <button class="strategy-btn" id="btnStb" onclick="setStrategy('small_to_big')">Small-to-Big</button>
+                    <button class="strategy-btn active" id="btnRoiRag" onclick="setStrategy('roi_rag')"
+                        title="엔트로피 기반 Evidence Unit 구성과 적응형 요약. 아래 두 버튼은 이 파이프라인을 대체하지 않고 그 위에 얹힙니다.">ROI-RAG</button>
+                    <button class="strategy-btn" id="btnStb" onclick="setStrategy('small_to_big')"
+                        title="ROI-RAG 파이프라인은 그대로 두고 청킹만 80단어 leaf로 바꾼 뒤, 추론 시 leaf가 속한 parent 청크를 근거로 확장합니다. 인덱스 재빌드가 필요합니다.">+ Small-to-Big</button>
+                    <button class="strategy-btn" id="btnBm25" onclick="toggleBm25()"
+                        title="원문 스니펫을 문장 단위로 나눠 질의와 BM25 점수가 높은 상위 N개만 프롬프트에 넣습니다. EU 요약문은 그대로 둡니다. 청킹 전략과 무관하게 함께 켤 수 있습니다.">+ BM25</button>
                 </div>
                 <div class="stb-options hidden" id="stbOptions">
                     <div class="param-row">
@@ -659,34 +664,12 @@
         <!-- Main Content: Query & Results -->
         <div class="main-content">
             <div class="card">
-                <div class="card-title">📐 ROI-RAG Execution Flow Architecture</div>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                    각 질의(Query)는 단계별 정밀 필터링을 통해 환각(Hallucination) 없는 고품질 근거 기반 답변을 생성합니다.
+                <div class="card-title">Interactive ROI-RAG Pipeline</div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
+                    ROI-RAG는 항상 실행되고, Small-to-Big과 BM25는 스위치 또는 프리셋으로 활성화합니다.
                 </p>
-                <div class="flow-diagram">
-                    <div class="flow-step-card">
-                        <span class="flow-step-num">⚡ Step 1</span>
-                        <div class="flow-step-title">Query Embedding</div>
-                        <div class="flow-step-desc">질의를 로컬 임베딩(<code style="color: #60a5fa;">all-MiniLM-L6-v2</code>)을 통해 384차원 의미 벡터로 변환합니다.</div>
-                    </div>
-                    <div class="flow-step-card">
-                        <span class="flow-step-num">🔍 Step 2</span>
-                        <div class="flow-step-title">Candidate Retrieval</div>
-                        <div class="flow-step-desc">메모리에 캐싱된 <code style="color: #60a5fa;">FAISS 인덱스</code>에서 상위 Top-K개 후보 이웃 단락을 초고속 탐색합니다.</div>
-                    </div>
-                    <div class="flow-step-card">
-                        <span class="flow-step-num">⚖️ Step 3</span>
-                        <div class="flow-step-title">Entropy Regime Filter</div>
-                        <div class="flow-step-desc">중복(RE)·다양성(DE) 엔트로피를 분석하여 <span class="regime-badge regime-LOW">LOW</span> <span class="regime-badge regime-MEDIUM">MED</span> <span class="regime-badge regime-HIGH">HIGH</span> 모드를 동적 부여합니다.</div>
-                    </div>
-                    <div class="flow-step-card">
-                        <span class="flow-step-num">🤖 Step 4</span>
-                        <div class="flow-step-title">Grounded Synthesis</div>
-                        <div class="flow-step-desc">VRAM에 상주된 LLM(<code style="color: #10b981;">{{ llm_backend | upper }}</code>)에 핵심 근거를 주입하여 최종 답변을 생성합니다.</div>
-                    </div>
-                </div>
+                <div id="pipelineFlowRoot" data-llm-model="{{ ollama_model }}"></div>
             </div>
-
             <div class="card">
                 <div class="card-title">💡 Online Inference & Retrieval</div>
                 <div class="query-bar">
@@ -699,17 +682,8 @@
                 </label>
                 <div class="sample-queries" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
                     <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary-color);">⚡ Redundant Dataset Samples:</span>
-                    <button class="sample-badge" onclick="setAndRunQuery('How many false distress calls did the Coast Guard hoax caller make from Annapolis?')">🚨 Coast Guard Hoax Calls</button>
                     <button class="sample-badge" onclick="setAndRunQuery('What happened to Dallas Police officer Rogelio Santander at the Home Depot?')">🚔 Dallas Police Shooting</button>
                     <button class="sample-badge" onclick="setAndRunQuery('Where was the stolen Picasso painting La Coiffeuse found after being shipped from Belgium?')">🎨 Picasso Painting Recovery</button>
-                    <button class="sample-badge" onclick="setAndRunQuery('Why did the Siskiyou County Board of Supervisors vote to secede and form the State of Jefferson?')">🌲 State of Jefferson Secession</button>
-                    <button class="sample-badge" onclick="setAndRunQuery('Why did Microsoft acquire Nokia cell phone business?')">📱 Microsoft & Nokia Deal</button>
-                </div>
-                <div class="sample-queries" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
-                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--accent-color);" title="답이 인접한 두 세그먼트에 걸쳐 있으나 ROI-RAG가 이를 서로 다른 EU로 분리한 문항. Top-K EU 검색에서 한쪽이 누락되므로 Small-to-Big의 parent 확장 효과를 검증하는 용도.">🔬 Cross-EU Hard Samples:</span>
-                    <button class="sample-badge" onclick="setAndRunQuery('What were the ages of Justices Breyer, Scalia, Kennedy and Ginsburg, and which major cases faced the Supreme Court that term?')">⚖️ Supreme Court Ages & Docket</button>
-                    <button class="sample-badge" onclick="setAndRunQuery('In the HGTV lawsuit, whom did the couple sue and what did their attorney say the company\&#39;s incentive was?')">🏠 HGTV Renovation Lawsuit</button>
-                    <button class="sample-badge" onclick="setAndRunQuery('What triggered the new gold rush in Jamestown and which past flood year do miners compare it to?')">⛏️ Jamestown Gold Rush</button>
                 </div>
 
                 <!-- Live RAG Execution Stepper Bar -->
@@ -788,9 +762,40 @@
         }
 
         let currentStrategy = 'roi_rag';
+        // BM25 문장 선별은 청킹 전략과 직교한다. roi_rag / small_to_big 어느 쪽과도
+        // 함께 켤 수 있고, 인덱스를 다시 만들 필요 없이 질의 시점에만 적용된다.
+        let useBm25 = false;
+
+        function dispatchPipelineConfiguration() {
+            window.dispatchEvent(new CustomEvent(
+                'pipeline-config-changed',
+                { detail: {
+                    stbEnabled: currentStrategy === 'small_to_big',
+                    bm25Enabled: useBm25
+                }}
+            ));
+        }
+
+        window.applyPipelineConfiguration = function({ stbEnabled, bm25Enabled }) {
+            const requestedStrategy = stbEnabled ? 'small_to_big' : 'roi_rag';
+            if (currentStrategy !== requestedStrategy) setStrategy(requestedStrategy);
+            if (useBm25 !== Boolean(bm25Enabled)) toggleBm25();
+            dispatchPipelineConfiguration();
+        };
+
+        window.updatePipelineRunState = function(detail) {
+            window.dispatchEvent(new CustomEvent('pipeline-run-state', { detail }));
+        };
+
+        function toggleBm25() {
+            useBm25 = !useBm25;
+            document.getElementById('btnBm25').className =
+                'strategy-btn' + (useBm25 ? ' active' : '');
+            dispatchPipelineConfiguration();
+        }
 
         function buildButtonLabel(strategy) {
-            return strategy === 'small_to_big' ? '🚀 Build Small-to-Big Index' : '🚀 Build ROI-RAG Index';
+            return strategy === 'small_to_big' ? '🚀 Build ROI-RAG + Small-to-Big Index' : '🚀 Build ROI-RAG Index';
         }
 
         function setStrategy(strategy) {
@@ -804,6 +809,7 @@
             }
             // 이미 인덱싱된 전략이면 재인덱싱 없이 해당 인덱스 상태를 바로 보여준다.
             fetchCurrentIndex(strategy);
+            dispatchPipelineConfiguration();
         }
 
         function getStbParams() {
@@ -817,7 +823,11 @@
         }
 
         // Load current index status on page start
-        window.addEventListener('DOMContentLoaded', () => fetchCurrentIndex(currentStrategy));
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchCurrentIndex(currentStrategy);
+            dispatchPipelineConfiguration();
+        });
+        window.addEventListener('pipeline-flow-ready', dispatchPipelineConfiguration);
 
         async function fetchCurrentIndex(strategy) {
             try {
@@ -829,7 +839,7 @@
                 document.getElementById('statSegments').innerText = data.segments_count || 0;
                 document.getElementById('statEUs').innerText = data.eus_count || 0;
                 const resolvedStrategy = data.chunking_strategy || strategy || 'roi_rag';
-                document.getElementById('statStrategy').innerText = resolvedStrategy === 'small_to_big' ? 'Small-to-Big' : 'ROI-RAG';
+                document.getElementById('statStrategy').innerText = resolvedStrategy === 'small_to_big' ? 'ROI-RAG + Small-to-Big' : 'ROI-RAG';
 
                 const readmeEl = document.getElementById('indexReadme');
                 if (readmeEl) {
@@ -938,7 +948,7 @@
                 if (data.status === "success") {
                     document.getElementById('statSegments').innerText = data.segments_count;
                     document.getElementById('statEUs').innerText = data.eus_count;
-                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
+                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'ROI-RAG + Small-to-Big' : 'ROI-RAG';
                     completeIndexingStepper(data);
                     fetchCurrentIndex(data.chunking_strategy);
                     alert(`Successfully indexed file '${file.name}' with ${data.eus_count} Evidence Units!`);
@@ -978,7 +988,7 @@
                 if (data.status === "success") {
                     document.getElementById('statSegments').innerText = data.segments_count;
                     document.getElementById('statEUs').innerText = data.eus_count;
-                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
+                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'ROI-RAG + Small-to-Big' : 'ROI-RAG';
                     document.getElementById('textInput').value = "";
                     completeIndexingStepper(data);
                     fetchCurrentIndex(data.chunking_strategy);
@@ -1025,6 +1035,14 @@
             euList.innerHTML = "";
             metricsBar.style.display = "none";
             stepper.style.display = "flex";
+            window.updatePipelineRunState({
+                phase: 'running',
+                query,
+                metrics: null,
+                errorNode: null,
+                ragasPhase: 'idle',
+                ragas: null
+            });
 
             // Reset and animate pipeline stepper
             clearTimeout(stepTimer1);
@@ -1069,7 +1087,7 @@
                 const res = await fetch('/api/query', {
                     method: 'POST',
                     headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, use_cache: useCache, chunking_strategy: currentStrategy })
+                    body: JSON.stringify({ query, use_cache: useCache, chunking_strategy: currentStrategy, use_bm25: useBm25 })
                 });
                 const data = await parseJsonResponse(res);
 
@@ -1080,6 +1098,12 @@
                 if (data.status === "success" && data.roi_rag) {
                     const roi = data.roi_rag;
                     answerBox.innerText = roi.answer;
+                    window.updatePipelineRunState({
+                        phase: 'completed',
+                        activeNode: null,
+                        errorNode: null,
+                        metrics: { pipeline: roi.pipeline_metrics || {} }
+                    });
 
                     // Update Stepper with live precise metrics
                     document.getElementById('flowStep1').className = 'stepper-item done';
@@ -1218,6 +1242,7 @@
                     : (event.message || '평가를 진행하고 있습니다.');
             };
 
+            window.updatePipelineRunState({ ragasPhase: 'running', ragas: null });
             btn.disabled = true;
             btn.innerHTML = "⏳ RAGAS 평가 중...";
             ragasResult.style.display = 'none';
@@ -1382,11 +1407,19 @@
                     detailsBox.appendChild(item);
                 });
 
+                window.updatePipelineRunState({
+                    ragasPhase: 'completed',
+                    ragas: {
+                        faithfulness: finalData.scores.faithfulness,
+                        answer_relevancy: finalData.scores.answer_relevancy ?? null
+                    }
+                });
                 ragasResult.style.display = 'block';
                 btn.innerHTML = "✅ 평가 완료";
             } catch (e) {
                 latestProgress = -1;
                 latestStage = 'failed';
+                window.updatePipelineRunState({ ragasPhase: 'error' });
                 progressBar.classList.remove('indeterminate');
                 progressBar.style.transform = 'none';
                 progressStage.textContent = '평가 실패';
@@ -1406,5 +1439,6 @@
             }
         }
     </script>
+    <script type="module" src="/static/pipeline-flow/pipeline-flow.js"></script>
 </body>
 </html>
