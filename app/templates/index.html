@@ -195,6 +195,14 @@
             gap: 1rem;
         }
 
+        /* Small-to-Big adds a parent-chunk tile between the leaf and EU counts. */
+        .stats-grid.with-parents {
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.6rem;
+        }
+
+        .stat-item.hidden { display: none; }
+
         .stat-item {
             background: var(--bg-color);
             padding: 1rem;
@@ -512,6 +520,25 @@
             border-color: var(--primary-color);
         }
 
+        /* Retrieval-mode dropdown needs more room than the numeric inputs. */
+        select.param-input {
+            width: auto;
+            min-width: 150px;
+            text-align: left;
+        }
+
+        .param-divider {
+            margin-top: 0.2rem;
+            padding-top: 0.55rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.7rem;
+            letter-spacing: 0.02em;
+            color: var(--text-secondary);
+            opacity: 0.85;
+        }
+
+        .param-row.hidden { display: none; }
+
         .strategy-badge {
             display: inline-block;
             padding: 0.2rem 0.6rem;
@@ -603,7 +630,15 @@
                         <span class="param-label">Leaves per Parent</span>
                         <input class="param-input" type="number" id="stbLeavesPerParent" value="3" min="1" max="10">
                     </div>
+                    <div class="param-divider">Retrieval (질의 시 적용 · 재빌드 불필요)</div>
                     <div class="param-row">
+                        <span class="param-label">Retrieval Mode</span>
+                        <select class="param-input" id="stbRetrievalMode" onchange="onStbRetrievalModeChange()">
+                            <option value="automerge">1. AutoMerge (parent 선택)</option>
+                            <option value="all_segments">2. Segment 전체선택</option>
+                        </select>
+                    </div>
+                    <div class="param-row" id="stbAutoMergeRow">
                         <span class="param-label">AutoMerge Threshold</span>
                         <input class="param-input" type="number" id="stbAutoMerge" value="0.0" min="0" max="1" step="0.1">
                     </div>
@@ -639,10 +674,14 @@
 
             <div class="card">
                 <div class="card-title">📊 Current Index Status</div>
-                <div class="stats-grid">
+                <div class="stats-grid" id="statsGrid">
                     <div class="stat-item">
                         <div class="stat-value" id="statSegments">0</div>
-                        <div class="stat-label">Chunks / Segments</div>
+                        <div class="stat-label" id="statSegmentsLabel">Segments</div>
+                    </div>
+                    <div class="stat-item hidden" id="statParentsItem">
+                        <div class="stat-value" id="statParents">0</div>
+                        <div class="stat-label">Parent Chunks</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value" id="statEUs">0</div>
@@ -798,12 +837,32 @@
             document.getElementById('btnRoiRag').className = 'strategy-btn' + (strategy === 'roi_rag' ? ' active' : '');
             document.getElementById('btnStb').className = 'strategy-btn' + (strategy === 'small_to_big' ? ' active' : '');
             document.getElementById('stbOptions').className = 'stb-options' + (strategy === 'small_to_big' ? '' : ' hidden');
+            onStbRetrievalModeChange();
             const buildBtn = document.getElementById('buildBtn');
             if (buildBtn && !buildBtn.disabled) {
                 buildBtn.innerHTML = buildButtonLabel(strategy);
             }
             // 이미 인덱싱된 전략이면 재인덱싱 없이 해당 인덱스 상태를 바로 보여준다.
             fetchCurrentIndex(strategy);
+        }
+
+        function onStbRetrievalModeChange() {
+            // The threshold only governs parent selection, so it is meaningless
+            // when every EU segment is sent verbatim.
+            const mode = document.getElementById('stbRetrievalMode').value;
+            document.getElementById('stbAutoMergeRow').className =
+                'param-row' + (mode === 'automerge' ? '' : ' hidden');
+        }
+
+        function getStbRetrievalParams() {
+            if (currentStrategy !== 'small_to_big') return {};
+            const mode = document.getElementById('stbRetrievalMode').value;
+            const params = { stb_retrieval_mode: mode };
+            if (mode === 'automerge') {
+                params.automerge_threshold =
+                    parseFloat(document.getElementById('stbAutoMerge').value) || 0.0;
+            }
+            return params;
         }
 
         function getStbParams() {
@@ -816,6 +875,23 @@
             };
         }
 
+        // Small-to-Big splits the same text into small leaves that are also grouped into
+        // parent chunks, so it needs a third tile that ROI-RAG has no counterpart for.
+        function renderIndexStats(data, strategy) {
+            const isStb = strategy === 'small_to_big';
+            document.getElementById('statSegments').innerText = data.segments_count || 0;
+            document.getElementById('statParents').innerText = data.parent_chunks_count || 0;
+            document.getElementById('statEUs').innerText = data.eus_count || 0;
+            document.getElementById('statSegmentsLabel').innerText =
+                isStb ? 'Leaf Chunks' : 'Segments';
+            document.getElementById('statParentsItem').className =
+                'stat-item' + (isStb ? '' : ' hidden');
+            document.getElementById('statsGrid').className =
+                'stats-grid' + (isStb ? ' with-parents' : '');
+            document.getElementById('statStrategy').innerText =
+                isStb ? 'Small-to-Big' : 'ROI-RAG';
+        }
+
         // Load current index status on page start
         window.addEventListener('DOMContentLoaded', () => fetchCurrentIndex(currentStrategy));
 
@@ -826,10 +902,8 @@
                     : '/api/current-index';
                 const res = await fetch(url, { headers: TUNNEL_HEADERS });
                 const data = await parseJsonResponse(res);
-                document.getElementById('statSegments').innerText = data.segments_count || 0;
-                document.getElementById('statEUs').innerText = data.eus_count || 0;
                 const resolvedStrategy = data.chunking_strategy || strategy || 'roi_rag';
-                document.getElementById('statStrategy').innerText = resolvedStrategy === 'small_to_big' ? 'Small-to-Big' : 'ROI-RAG';
+                renderIndexStats(data, resolvedStrategy);
 
                 const readmeEl = document.getElementById('indexReadme');
                 if (readmeEl) {
@@ -936,9 +1010,7 @@
                 const res = await fetch('/api/upload-file', { method: 'POST', headers: TUNNEL_HEADERS, body: formData });
                 const data = await parseJsonResponse(res);
                 if (data.status === "success") {
-                    document.getElementById('statSegments').innerText = data.segments_count;
-                    document.getElementById('statEUs').innerText = data.eus_count;
-                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
+                    renderIndexStats(data, data.chunking_strategy);
                     completeIndexingStepper(data);
                     fetchCurrentIndex(data.chunking_strategy);
                     alert(`Successfully indexed file '${file.name}' with ${data.eus_count} Evidence Units!`);
@@ -976,9 +1048,7 @@
                 });
                 const data = await parseJsonResponse(res);
                 if (data.status === "success") {
-                    document.getElementById('statSegments').innerText = data.segments_count;
-                    document.getElementById('statEUs').innerText = data.eus_count;
-                    document.getElementById('statStrategy').innerText = (data.chunking_strategy === 'small_to_big') ? 'Small-to-Big' : 'ROI-RAG';
+                    renderIndexStats(data, data.chunking_strategy);
                     document.getElementById('textInput').value = "";
                     completeIndexingStepper(data);
                     fetchCurrentIndex(data.chunking_strategy);
@@ -1069,7 +1139,12 @@
                 const res = await fetch('/api/query', {
                     method: 'POST',
                     headers: { ...TUNNEL_HEADERS, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, use_cache: useCache, chunking_strategy: currentStrategy })
+                    body: JSON.stringify({
+                        query,
+                        use_cache: useCache,
+                        chunking_strategy: currentStrategy,
+                        ...getStbRetrievalParams()
+                    })
                 });
                 const data = await parseJsonResponse(res);
 

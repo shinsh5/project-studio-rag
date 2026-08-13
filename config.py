@@ -61,6 +61,13 @@ STB_LEAF_OVERLAP = int(os.getenv("STB_LEAF_OVERLAP", 20))
 STB_LEAVES_PER_PARENT = int(os.getenv("STB_LEAVES_PER_PARENT", 3))
 AUTOMERGE_THRESHOLD = float(os.getenv("AUTOMERGE_THRESHOLD", 0.0))
 
+# Small-to-Big retrieval mode (query-time only; no index rebuild required):
+#   "automerge"    - expand each hit EU to the parent chunks its leaves belong to,
+#                    keeping only parents holding >= AUTOMERGE_THRESHOLD of the leaves.
+#   "all_segments" - send every leaf segment of the hit EU verbatim, no parent expansion.
+STB_RETRIEVAL_MODES = ("automerge", "all_segments")
+STB_RETRIEVAL_MODE = os.getenv("STB_RETRIEVAL_MODE", "automerge")
+
 # Candidate Neighborhood Configuration
 NEIGHBORHOOD_K = int(os.getenv("NEIGHBORHOOD_K", 10))
 

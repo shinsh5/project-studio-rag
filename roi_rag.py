@@ -104,6 +104,65 @@ def _rank_segments_by_query(
     return [valid[i] for i in np.argsort(-similarities)]
 
 
+def resolve_stb_retrieval_mode(mode: str | None = None) -> str:
+    """Return a valid STB retrieval mode, falling back to the configured default."""
+    candidate = mode or config.STB_RETRIEVAL_MODE
+    if candidate not in config.STB_RETRIEVAL_MODES:
+        print(
+            f"[ROIRAG] Unknown STB retrieval mode '{candidate}'. "
+            f"Falling back to 'automerge'."
+        )
+        return "automerge"
+    return candidate
+
+
+def _stb_automerge_context(
+    eu: dict,
+    segments: list[str],
+    parent_chunks: list[str],
+    leaf_to_parent: list[int],
+) -> str:
+    """
+    AutoMerge mode: replace the EU's leaves with the parent chunks they belong to,
+    keeping only parents that hold at least AUTOMERGE_THRESHOLD of the EU's leaves.
+    Falls back to raw leaf text when the threshold excludes every parent.
+    """
+    seg_indices = [s_idx for s_idx in eu["segment_indices"] if s_idx < len(leaf_to_parent)]
+    if not seg_indices:
+        return ""
+
+    parent_counter = Counter(leaf_to_parent[s_idx] for s_idx in seg_indices)
+    selected_parents = [
+        pid for pid, cnt in parent_counter.items()
+        if cnt / len(seg_indices) >= config.AUTOMERGE_THRESHOLD
+    ]
+
+    if selected_parents:
+        parent_texts = "\n\n".join([
+            f"[Parent Chunk #{pid}]\n{parent_chunks[pid]}"
+            for pid in sorted(selected_parents)
+            if pid < len(parent_chunks)
+        ])
+        return f"Extended Context (Small-to-Big):\n{parent_texts}"
+
+    supporting_segs = [segments[s_idx] for s_idx in seg_indices if s_idx < len(segments)]
+    raw_text = "\n".join([f"- {seg}" for seg in supporting_segs])
+    return f"Top Original Snippets:\n{raw_text}"
+
+
+def _stb_all_segments_context(eu: dict, segments: list[str]) -> str:
+    """
+    All-segments mode: send every leaf segment belonging to the EU verbatim, with no
+    parent expansion. Leaves stay in their stored (document) order so that adjacent
+    leaves still read continuously.
+    """
+    supporting_segs = [
+        segments[s_idx] for s_idx in sorted(eu["segment_indices"]) if s_idx < len(segments)
+    ]
+    raw_text = "\n".join([f"- {seg}" for seg in supporting_segs])
+    return f"All EU Segments (Small-to-Big):\n{raw_text}"
+
+
 def get_roi_rag_pipeline():
     """
     Returns a callable pipeline function for executing ROI-RAG queries against the built index.
@@ -118,6 +177,7 @@ def get_roi_rag_pipeline():
         query: str,
         k: int = config.RETRIEVAL_K,
         use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT,
+        stb_retrieval_mode: str | None = None,
     ) -> dict:
         global _cached_index_data, _cached_index_manager, _cached_index_mtime, _cached_index_strategy
 
@@ -133,7 +193,8 @@ def get_roi_rag_pipeline():
                 "latency_ms": 0,
                 "api_calls": 0,
                 "tokens_used": 0,
-                "cache_hit": False
+                "cache_hit": False,
+                "stb_retrieval_mode": None
             }
 
         try:
@@ -162,7 +223,8 @@ def get_roi_rag_pipeline():
                 "latency_ms": 0,
                 "api_calls": 0,
                 "tokens_used": 0,
-                "cache_hit": False
+                "cache_hit": False,
+                "stb_retrieval_mode": None
             }
 
         start_time = time.time()
@@ -185,6 +247,11 @@ def get_roi_rag_pipeline():
         is_stb = index_data.get("chunking_strategy") == "small_to_big"
         parent_chunks = index_data.get("parent_chunks", [])
         leaf_to_parent = index_data.get("leaf_to_parent", [])
+        active_stb_mode = resolve_stb_retrieval_mode(stb_retrieval_mode)
+        # AutoMerge needs the parent layer; all_segments works off leaves alone.
+        use_stb_path = is_stb and (
+            active_stb_mode == "all_segments" or (parent_chunks and leaf_to_parent)
+        )
 
         for idx, score in zip(eu_indices, similarity_scores):
             if idx >= len(evidence_units):
@@ -192,40 +259,19 @@ def get_roi_rag_pipeline():
             eu = evidence_units[idx]
             retrieved_eus.append(eu)
 
-            if is_stb and parent_chunks and leaf_to_parent:
-                # EU 내 각 segment가 속한 parent를 집계
-                seg_indices = [s_idx for s_idx in eu["segment_indices"] if s_idx < len(leaf_to_parent)]
-                parent_ids = [leaf_to_parent[s_idx] for s_idx in seg_indices]
-                parent_counter = Counter(parent_ids)
-
-                # AUTOMERGE_THRESHOLD 이상인 parent 청크를 컨텍스트로 사용
-                selected_parents = [
-                    pid for pid, cnt in parent_counter.items()
-                    if cnt / len(seg_indices) >= config.AUTOMERGE_THRESHOLD
-                ]
-
-                if selected_parents:
-                    parent_texts = "\n\n".join([
-                        f"[Parent Chunk #{pid}]\n{parent_chunks[pid]}"
-                        for pid in sorted(selected_parents)
-                        if pid < len(parent_chunks)
-                    ])
-                    eu_text = (
-                        f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
-                        f"RE: {eu['re']}, DE: {eu['de']})\n"
-                        f"Summary: {eu['summary']}\n"
-                        f"Extended Context (Small-to-Big):\n{parent_texts}"
-                    )
+            if use_stb_path:
+                if active_stb_mode == "all_segments":
+                    body = _stb_all_segments_context(eu, segments)
                 else:
-                    # threshold 미달 시 leaf 원문 그대로
-                    supporting_segs = [segments[s_idx] for s_idx in eu["segment_indices"] if s_idx < len(segments)]
-                    raw_text = "\n".join([f"- {seg}" for seg in supporting_segs])
-                    eu_text = (
-                        f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
-                        f"RE: {eu['re']}, DE: {eu['de']})\n"
-                        f"Summary: {eu['summary']}\n"
-                        f"Top Original Snippets:\n{raw_text}"
+                    body = _stb_automerge_context(
+                        eu, segments, parent_chunks, leaf_to_parent
                     )
+                eu_text = (
+                    f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
+                    f"RE: {eu['re']}, DE: {eu['de']})\n"
+                    f"Summary: {eu['summary']}\n"
+                    f"{body}"
+                )
             else:
                 # Hybrid Context Strategy: Provide the condensed summary AND top-3 representative raw snippets,
                 # picking the snippets most similar to the query rather than the first three stored.
@@ -262,7 +308,14 @@ def get_roi_rag_pipeline():
         api_calls = 0
         tokens_used = 0
         cache_hit = False
-        index_version = f"{current_strategy}:{current_mtime}:{os.path.getsize(index_path)}"
+        # The retrieval mode reshapes the prompt, so it belongs in the cache identity.
+        retrieval_signature = (
+            f"{active_stb_mode}:{config.AUTOMERGE_THRESHOLD}" if use_stb_path else "roi_rag"
+        )
+        index_version = (
+            f"{current_strategy}:{current_mtime}:{os.path.getsize(index_path)}"
+            f":{retrieval_signature}"
+        )
         cache_key = _response_cache_key(prompt, index_version)
 
         try:
@@ -288,7 +341,8 @@ def get_roi_rag_pipeline():
             "latency_ms": latency_ms,
             "api_calls": api_calls,
             "tokens_used": tokens_used,
-            "cache_hit": cache_hit
+            "cache_hit": cache_hit,
+            "stb_retrieval_mode": active_stb_mode if use_stb_path else None
         }
 
     return run_pipeline

@@ -43,6 +43,9 @@ class QueryRequest(BaseModel):
     query: str
     use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT
     chunking_strategy: str | None = None
+    # Small-to-Big only: "automerge" | "all_segments". Applied per query, no rebuild.
+    stb_retrieval_mode: str | None = None
+    automerge_threshold: float | None = None
 
 class BuildIndexRequest(BaseModel):
     text: str
@@ -80,6 +83,7 @@ def get_current_index(strategy: str | None = None):
         return {
             "status": "success",
             "segments_count": len(index_data.get("segments", [])),
+            "parent_chunks_count": len(index_data.get("parent_chunks", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
             "chunking_strategy": index_data.get("chunking_strategy", requested_strategy),
             "evidence_units": index_data.get("evidence_units", []),
@@ -90,6 +94,7 @@ def get_current_index(strategy: str | None = None):
         return {
             "status": "empty",
             "segments_count": 0,
+            "parent_chunks_count": 0,
             "eus_count": 0,
             "chunking_strategy": requested_strategy,
             "evidence_units": [],
@@ -119,6 +124,7 @@ def build_index(request: BuildIndexRequest):
         return {
             "status": "success",
             "segments_count": len(index_data.get("segments", [])),
+            "parent_chunks_count": len(index_data.get("parent_chunks", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
             "chunking_strategy": request.chunking_strategy,
             "evidence_units": index_data.get("evidence_units", [])
@@ -159,6 +165,7 @@ def upload_file(
             "status": "success",
             "filename": file.filename,
             "segments_count": len(index_data.get("segments", [])),
+            "parent_chunks_count": len(index_data.get("parent_chunks", [])),
             "eus_count": len(index_data.get("evidence_units", [])),
             "chunking_strategy": chunking_strategy,
             "evidence_units": index_data.get("evidence_units", [])
@@ -178,8 +185,25 @@ def execute_query(request: QueryRequest):
     if request.chunking_strategy:
         config.CHUNKING_STRATEGY = request.chunking_strategy
 
+    if request.stb_retrieval_mode and request.stb_retrieval_mode not in config.STB_RETRIEVAL_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown stb_retrieval_mode '{request.stb_retrieval_mode}'. "
+                f"Expected one of {list(config.STB_RETRIEVAL_MODES)}."
+            ),
+        )
+
+    # AutoMerge threshold is a retrieval-time knob, so a query may override it.
+    if request.automerge_threshold is not None:
+        config.AUTOMERGE_THRESHOLD = request.automerge_threshold
+
     try:
-        res = roi_pipeline(request.query, use_cache=request.use_cache)
+        res = roi_pipeline(
+            request.query,
+            use_cache=request.use_cache,
+            stb_retrieval_mode=request.stb_retrieval_mode,
+        )
         return {
             "status": "success",
             "roi_rag": {
@@ -190,7 +214,8 @@ def execute_query(request: QueryRequest):
                 "api_calls": res["api_calls"],
                 "tokens_used": res["tokens_used"],
                 "prompt": res["prompt"],
-                "cache_hit": res["cache_hit"]
+                "cache_hit": res["cache_hit"],
+                "stb_retrieval_mode": res.get("stb_retrieval_mode")
             }
         }
     except Exception as e:
