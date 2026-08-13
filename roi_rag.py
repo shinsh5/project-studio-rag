@@ -10,6 +10,7 @@ import threading
 import time
 from collections import OrderedDict, Counter
 import numpy as np
+import bm25_selection
 import config
 import llm_client
 from indexer import load_roi_rag_index
@@ -118,11 +119,14 @@ def get_roi_rag_pipeline():
         query: str,
         k: int = config.RETRIEVAL_K,
         use_cache: bool = config.LLM_RESPONSE_CACHE_DEFAULT,
+        use_bm25: bool | None = None,
     ) -> dict:
         global _cached_index_data, _cached_index_manager, _cached_index_mtime, _cached_index_strategy
 
         index_path = config.get_index_path()
         current_strategy = config.CHUNKING_STRATEGY
+        if use_bm25 is None:
+            use_bm25 = config.BM25_EVIDENCE_SELECTION
 
         if not os.path.exists(index_path):
             return {
@@ -133,6 +137,7 @@ def get_roi_rag_pipeline():
                 "latency_ms": 0,
                 "api_calls": 0,
                 "tokens_used": 0,
+                "usage": {},
                 "cache_hit": False
             }
 
@@ -162,6 +167,7 @@ def get_roi_rag_pipeline():
                 "latency_ms": 0,
                 "api_calls": 0,
                 "tokens_used": 0,
+                "usage": {},
                 "cache_hit": False
             }
 
@@ -181,10 +187,29 @@ def get_roi_rag_pipeline():
 
         retrieved_eus = []
         context_parts = []
+        parent_candidates = 0
+        parent_duplicates_removed = 0
+        used_parent_ids: set[int] = set()
+        bm25_sentences_before = 0
+        bm25_sentences_after = 0
 
         is_stb = index_data.get("chunking_strategy") == "small_to_big"
         parent_chunks = index_data.get("parent_chunks", [])
         leaf_to_parent = index_data.get("leaf_to_parent", [])
+
+        def _trim(raw_text: str) -> str:
+            """Apply BM25 and collect the compression metrics shown in React Flow."""
+            nonlocal bm25_sentences_before, bm25_sentences_after
+            before = len(bm25_selection.split_sentences(raw_text))
+            bm25_sentences_before += before
+            if not use_bm25:
+                bm25_sentences_after += before
+                return raw_text
+            selected = bm25_selection.select_sentences(
+                query, raw_text, config.BM25_SENTENCES_PER_SEGMENT
+            )
+            bm25_sentences_after += len(bm25_selection.split_sentences(selected))
+            return selected
 
         for idx, score in zip(eu_indices, similarity_scores):
             if idx >= len(evidence_units):
@@ -204,9 +229,25 @@ def get_roi_rag_pipeline():
                     if cnt / len(seg_indices) >= config.AUTOMERGE_THRESHOLD
                 ]
 
+                # A parent can be reached from several retrieved EUs. Keep its
+                # full text only once while preserving every EU summary.
+                had_selected_parents = bool(selected_parents)
+                valid_parent_ids = [
+                    pid for pid in sorted(selected_parents)
+                    if 0 <= pid < len(parent_chunks)
+                ]
+                parent_candidates += len(valid_parent_ids)
+                selected_parents = [
+                    pid for pid in valid_parent_ids if pid not in used_parent_ids
+                ]
+                parent_duplicates_removed += (
+                    len(valid_parent_ids) - len(selected_parents)
+                )
+                used_parent_ids.update(selected_parents)
+
                 if selected_parents:
                     parent_texts = "\n\n".join([
-                        f"[Parent Chunk #{pid}]\n{parent_chunks[pid]}"
+                        f"[Parent Chunk #{pid}]\n{_trim(parent_chunks[pid])}"
                         for pid in sorted(selected_parents)
                         if pid < len(parent_chunks)
                     ])
@@ -216,15 +257,23 @@ def get_roi_rag_pipeline():
                         f"Summary: {eu['summary']}\n"
                         f"Extended Context (Small-to-Big):\n{parent_texts}"
                     )
-                else:
+                elif not had_selected_parents:
                     # threshold 미달 시 leaf 원문 그대로
                     supporting_segs = [segments[s_idx] for s_idx in eu["segment_indices"] if s_idx < len(segments)]
-                    raw_text = "\n".join([f"- {seg}" for seg in supporting_segs])
+                    raw_text = "\n".join([f"- {_trim(seg)}" for seg in supporting_segs])
                     eu_text = (
                         f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
                         f"RE: {eu['re']}, DE: {eu['de']})\n"
                         f"Summary: {eu['summary']}\n"
                         f"Top Original Snippets:\n{raw_text}"
+                    )
+                else:
+                    # All selected parents were already emitted by an earlier EU.
+                    eu_text = (
+                        f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
+                        f"RE: {eu['re']}, DE: {eu['de']})\n"
+                        f"Summary: {eu['summary']}\n"
+                        "Extended Context (Small-to-Big): parent text already included above."
                     )
             else:
                 # Hybrid Context Strategy: Provide the condensed summary AND top-3 representative raw snippets,
@@ -233,7 +282,7 @@ def get_roi_rag_pipeline():
                     eu["segment_indices"], segment_embeddings, query_emb
                 )
                 supporting_segs = [segments[s_idx] for s_idx in ranked_indices[:3] if s_idx < len(segments)]
-                representative_segments = "\n".join([f"- {seg}" for seg in supporting_segs]) if supporting_segs else ""
+                representative_segments = "\n".join([f"- {_trim(seg)}" for seg in supporting_segs]) if supporting_segs else ""
                 eu_text = (
                     f"Evidence Unit #{eu['eu_id']} (Similarity: {score:.4f}, Redundancy: {eu['regime']}, "
                     f"RE: {eu['re']}, DE: {eu['de']})\n"
@@ -261,8 +310,14 @@ def get_roi_rag_pipeline():
         # 4. Generation (Llama response cache only; RAGAS is always fresh)
         api_calls = 0
         tokens_used = 0
+        usage: dict = {}
         cache_hit = False
-        index_version = f"{current_strategy}:{current_mtime}:{os.path.getsize(index_path)}"
+        bm25_tag = (
+            f"bm25:{config.BM25_SENTENCES_PER_SEGMENT}" if use_bm25 else "bm25:off"
+        )
+        index_version = (
+            f"{current_strategy}:{current_mtime}:{os.path.getsize(index_path)}:{bm25_tag}"
+        )
         cache_key = _response_cache_key(prompt, index_version)
 
         try:
@@ -271,8 +326,12 @@ def get_roi_rag_pipeline():
                 cache_hit = answer is not None
                 if answer is None:
                     api_calls = 1
-                    answer = llm_client.generate(prompt)
-                    tokens_used = (len(prompt) + len(answer)) // 4
+                    answer, usage = llm_client.generate_with_usage(prompt)
+                    # Ollama reports exact counts; fall back to the character
+                    # estimate only when it omits them.
+                    tokens_used = usage.get("total_tokens") or (
+                        len(prompt) + len(answer)
+                    ) // 4
                     if use_cache:
                         _store_cached_response(cache_key, answer)
         except Exception as e:
@@ -288,6 +347,24 @@ def get_roi_rag_pipeline():
             "latency_ms": latency_ms,
             "api_calls": api_calls,
             "tokens_used": tokens_used,
+            "usage": usage,
+            "bm25_evidence_selection": use_bm25,
+            "pipeline_metrics": {
+                "embedding_dimension": int(query_emb.shape[-1]),
+                "retrieved_eus": len(retrieved_eus),
+                "small_to_big_enabled": bool(is_stb and parent_chunks and leaf_to_parent),
+                "expanded_parents": len(used_parent_ids),
+                "parent_candidates": parent_candidates,
+                "unique_parents": len(used_parent_ids),
+                "parent_duplicates_removed": parent_duplicates_removed,
+                "bm25_enabled": bool(use_bm25),
+                "bm25_sentences_before": bm25_sentences_before,
+                "bm25_sentences_after": bm25_sentences_after,
+                "prompt_chars": len(prompt),
+                "context_chars": len(context_str),
+                "latency_ms": latency_ms,
+                "cache_hit": cache_hit,
+            },
             "cache_hit": cache_hit
         }
 

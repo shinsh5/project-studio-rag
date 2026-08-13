@@ -10,12 +10,50 @@ _OLLAMA_GENERATION_LOCK = threading.Lock()
 
 def generate(prompt: str) -> str:
     """Generate RAG answers and index summaries with the local Ollama model."""
+    return generate_with_usage(prompt)[0]
+
+
+def generate_with_usage(prompt: str) -> tuple[str, dict]:
+    """
+    Same as generate(), but also returns Ollama's own token accounting.
+
+    Ollama reports exact prompt/completion token counts and separate prefill
+    and decode durations. Character-based estimates are off by tens of percent
+    (measured 42 vs 31 on one sample), which is too coarse to support claims
+    about token savings between retrieval strategies.
+
+    Returns (text, usage) where usage has prompt_tokens, completion_tokens,
+    total_tokens, and the prefill/decode/total durations in milliseconds.
+    Values are None when Ollama omits them.
+    """
     if config.LLM_BACKEND.lower() != "ollama":
         raise ValueError(
             f"Unsupported internal LLM backend: {config.LLM_BACKEND}. "
             "Set LLM_BACKEND=ollama."
         )
     return _ollama_generate(prompt)
+
+
+def _nanos_to_ms(value) -> float | None:
+    return None if value is None else round(value / 1_000_000, 1)
+
+
+def _extract_usage(response) -> dict:
+    """Pull Ollama's token counters out of a chat response."""
+    payload = dict(response)
+    prompt_tokens = payload.get("prompt_eval_count")
+    completion_tokens = payload.get("eval_count")
+    total = None
+    if prompt_tokens is not None and completion_tokens is not None:
+        total = prompt_tokens + completion_tokens
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total,
+        "prefill_ms": _nanos_to_ms(payload.get("prompt_eval_duration")),
+        "decode_ms": _nanos_to_ms(payload.get("eval_duration")),
+        "total_ms": _nanos_to_ms(payload.get("total_duration")),
+    }
 
 
 def generate_json(prompt: str, stop=None) -> str:
@@ -25,7 +63,7 @@ def generate_json(prompt: str, stop=None) -> str:
             f"Unsupported evaluation LLM backend: {config.LLM_BACKEND}. "
             "Set LLM_BACKEND=ollama."
         )
-    return _ollama_generate(prompt, json_mode=True, stop=stop)
+    return _ollama_generate(prompt, json_mode=True, stop=stop)[0]
 
 
 def _ollama_client():
@@ -34,7 +72,9 @@ def _ollama_client():
     return ollama.Client(host=config.OLLAMA_BASE_URL)
 
 
-def _ollama_generate(prompt: str, json_mode: bool = False, stop=None) -> str:
+def _ollama_generate(
+    prompt: str, json_mode: bool = False, stop=None
+) -> tuple[str, dict]:
     try:
         options = {
             "temperature": config.OLLAMA_TEMPERATURE,
@@ -66,7 +106,7 @@ def _ollama_generate(prompt: str, json_mode: bool = False, stop=None) -> str:
                     keep_alive=0,
                 )
             response = client.chat(**request)
-        return response["message"]["content"].strip()
+        return response["message"]["content"].strip(), _extract_usage(response)
     except Exception as exc:
         print(f"[LLM Client] Ollama Error: {exc}")
         raise

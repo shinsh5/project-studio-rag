@@ -6,7 +6,7 @@ import llm_client
 
 
 class TestLLMClient(unittest.TestCase):
-    @patch("llm_client._ollama_generate", return_value="local answer")
+    @patch("llm_client._ollama_generate", return_value=("local answer", {}))
     def test_internal_generation_uses_ollama(self, mock_generate):
         with patch.object(config, "LLM_BACKEND", "ollama"):
             self.assertEqual(llm_client.generate("question"), "local answer")
@@ -17,7 +17,7 @@ class TestLLMClient(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Set LLM_BACKEND=ollama"):
                 llm_client.generate("question")
 
-    @patch("llm_client._ollama_generate", return_value='{"score": 1}')
+    @patch("llm_client._ollama_generate", return_value=('{"score": 1}', {}))
     def test_local_json_generation_still_uses_ollama(self, mock_generate):
         with patch.object(config, "LLM_BACKEND", "ollama"):
             self.assertEqual(llm_client.generate_json("local task"), '{"score": 1}')
@@ -40,11 +40,14 @@ class TestLLMClient(unittest.TestCase):
             patch.object(config, "OLLAMA_KEEP_ALIVE", 0),
             patch.object(config, "OLLAMA_FRESH_RUNNER", True),
         ):
-            result = llm_client._ollama_generate(
+            result, usage = llm_client._ollama_generate(
                 "local task", json_mode=True, stop=["END"]
             )
 
         self.assertEqual(result, '{"score": 1}')
+        # Ollama omitted the counters in this mock, so usage stays empty-valued.
+        self.assertIsNone(usage["prompt_tokens"])
+        self.assertIsNone(usage["total_tokens"])
         request = mock_factory.return_value.chat.call_args.kwargs
         mock_factory.return_value.generate.assert_called_once_with(
             model=config.OLLAMA_MODEL,
@@ -66,6 +69,31 @@ class TestLLMClient(unittest.TestCase):
                 "stop": ["END"],
             },
         )
+
+    @patch("llm_client._ollama_client")
+    def test_generate_with_usage_reports_ollama_token_counts(self, mock_factory):
+        mock_factory.return_value.chat.return_value = {
+            "message": {"content": " answer "},
+            "prompt_eval_count": 3371,
+            "eval_count": 64,
+            "prompt_eval_duration": 48_136_000,
+            "eval_duration": 256_774_000,
+            "total_duration": 1_963_570_100,
+        }
+
+        with (
+            patch.object(config, "LLM_BACKEND", "ollama"),
+            patch.object(config, "OLLAMA_FRESH_RUNNER", False),
+        ):
+            text, usage = llm_client.generate_with_usage("question")
+
+        self.assertEqual(text, "answer")
+        self.assertEqual(usage["prompt_tokens"], 3371)
+        self.assertEqual(usage["completion_tokens"], 64)
+        self.assertEqual(usage["total_tokens"], 3435)
+        self.assertEqual(usage["prefill_ms"], 48.1)
+        self.assertEqual(usage["decode_ms"], 256.8)
+        self.assertEqual(usage["total_ms"], 1963.6)
 
     def test_get_ragas_llm_requires_api_key(self):
         with patch.object(llm_client, "_RAGAS_LLM", None):
